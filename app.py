@@ -1,6 +1,10 @@
 """
 Fall Detection Microservice — Multi-level alerts, SSE + WebSocket, REST API.
 Supports iframe embedding and external system integration.
+
+v1.0 — 单人追踪版
+  仅处理画面中最大的人体（primary_person），适合单老人居家场景。
+  多人监测请见后续版本。
 """
 import cv2
 import numpy as np
