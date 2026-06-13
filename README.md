@@ -35,7 +35,7 @@ SafeSight 是一套**无感式、低成本、纯视觉**的老年人跌倒实时
 - **多摄像头实时监控** | Multi-Camera Monitoring — 自适应网格布局，支持 USB / RTSP / 海康 NVR 多类视频源混合接入
 - **姿态估计与跟踪** | Pose Estimation & Tracking — YOLOv8-Pose 检测 17 个关键点，IoU 多目标跟踪，跳帧策略保障 CPU 实时性
 - **多特征融合跌倒判定** | Multi-Feature Fall Detection — 融合躯干角度、垂直速度、高宽比、角加速度、头脚差、着地检测、专用分类模型七维度，尺度归一化，Sigmoid 加权输出连续概率值 P_FALL
-- **双级智能告警** | Two-Level Alerts — 🟡 黄色预警 P_FALL≥0.65「可能摔倒」闪烁提醒，🔴 红色告警 P_FALL≥0.85×3帧「确认摔倒」全屏弹窗+警报音+自动截图+AI分析
+- **双级智能告警** | Two-Level Alerts — 🟡 黄色预警 P_FALL≥0.55「可能摔倒」闪烁提醒，🔴 红色告警 P_FALL≥0.75×2帧「确认摔倒」全屏弹窗+警报音+自动截图+AI分析
 - **人脸识别与身份绑定** | Face Recognition — InsightFace ArcFace 512 维特征向量，余弦相似度匹配，在线自适应学习
 - **AI 大模型分析** | LLM Analysis — 跌倒后异步调用 DeepSeek 生成结构化事故分析报告
 - **系统登录鉴权** | Login System — Session 鉴权，所有页面/API/视频流需登录访问
@@ -261,8 +261,8 @@ es.onmessage = (e) => {
 
 | Level | Trigger | Visual | Audio | Duration |
 |-------|---------|--------|-------|----------|
-| 🟡 **Yellow** 可能摔倒 | P_FALL ≥ 0.65 | Yellow flashing overlay 黄色闪烁 | Soft beep 轻柔提示音 | Auto-dismiss 3s |
-| 🔴 **Red** 确认摔倒 | P_FALL ≥ 0.85 × 3 frames | Full-screen red modal 全屏红色弹窗 | Continuous alarm 持续警报 | Manual dismiss 人工确认 |
+| 🟡 **Yellow** 可能摔倒 | P_FALL ≥ 0.55 | Yellow flashing overlay 黄色闪烁 | Soft beep 轻柔提示音 | Auto-dismiss 3s |
+| 🔴 **Red** 确认摔倒 | P_FALL ≥ 0.75 × 2 frames | Full-screen red modal 全屏红色弹窗 | Continuous alarm 持续警报 | Manual dismiss 人工确认 |
 
 > P_FALL 由七个特征加权融合：躯干角度 (30%) + 垂直速度 (22%) + 宽高比 (18%) + 角加速度 (10%) + 着地检测 (10%) + 头脚差 (5%) + 分类模型 (5%)，尺度归一化，经双层 Sigmoid 映射。
 > 红色告警触发后自动截图保存、写入数据库、异步调用 DeepSeek AI 分析。10 秒冷却期避免重复触发。
