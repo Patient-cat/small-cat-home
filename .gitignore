@@ -49,3 +49,7 @@ Thumbs.db
 # Large zip
 *.zip
 数据/
+
+# Misc
+*.lnk
+.gstack/
