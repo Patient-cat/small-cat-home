@@ -252,7 +252,7 @@ async function doUpload() {
             // Show and start the test video stream
             var img = document.getElementById('testPreview');
             img.style.display = 'block';
-            img.src = '/test_feed?t=' + Date.now();
+            img.src = '/test_feed?overlay=1&t=' + Date.now();
         } else {
             msg.className = 'message error'; msg.textContent = data.error;
         }
@@ -327,7 +327,7 @@ function reloadVideo() {
     fetch('/test/pause', { method: 'POST' }).then(r => r.json()).then(d => {
         if (d.ok && d.paused) fetch('/test/pause', { method: 'POST' }); // unpause if paused
     });
-    setTimeout(() => { img.src = '/test_feed?t=' + Date.now(); }, 200);
+    setTimeout(() => { img.src = '/test_feed?overlay=1&t=' + Date.now(); }, 200);
     testEOF = false;
     testPaused = false;
     updateTestControls();
