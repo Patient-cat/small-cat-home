@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>监控大厅 - 跌倒监测系统</title>
+<style>
+/* ============================================================
+   Modern Surveillance Dashboard — Dark Glass Theme
+   Inspired by camera.ui / modern NVR interfaces
+   ============================================================ */
+:root {
+  --bg: #080c12;
+  --surface: #111820;
+  --surface2: #161e28;
+  --border: #1e2a36;
+  --border-hover: #2d3d50;
+  --accent: #00d4aa;
+  --accent-dim: rgba(0,212,170,0.12);
+  --green: #22c55e;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --text: #c8d2dc;
+  --text-dim: #60738a;
+  --text-bright: #e8edf2;
+  --radius: 14px;
+  --radius-sm: 8px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Background subtle grid ---- */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(0,212,170,0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(0,150,255,0.02) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================================
+   Header — glass effect
+   ============================================================ */
+.header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: rgba(17,24,32,0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-logo .dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: breathe 2s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%,100% { opacity: 1; box-shadow: 0 0 8px var(--accent); }
+  50%     { opacity: 0.5; box-shadow: 0 0 16px var(--accent); }
+}
+.header-logo h1 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-bright);
+  letter-spacing: -0.3px;
+}
+.header-info {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 3px 10px;
+  background: var(--surface2);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-right a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 12px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  transition: all 0.2s;
+}
+.header-right a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ============================================================
+   Buttons — capsule style
+   ============================================================ */
+.btn {
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+.btn.accent {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+.btn.accent:hover {
+  background: rgba(0,212,170,0.2);
+}
+.btn.active {
+  border-color: var(--green);
+  color: var(--green);
+  background: rgba(34,197,94,0.1);
+}
+
+/* ============================================================
+   Video Grid
+   ============================================================ */
+.video-grid {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  background: transparent;
+}
+.video-grid::-webkit-scrollbar {
+  width: 4px;
+}
+.video-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+.video-grid::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+/* ============================================================
+   Camera Card
+   ============================================================ */
+.cam-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  transition: all 0.3s ease;
+}
+.cam-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow);
+}
+.cam-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.cam-card.disabled {
+  opacity: 0.35;
+}
+.cam-card.disabled:hover {
+  opacity: 0.55;
+}
+
+/* ---- Floating controls (hover to reveal) ---- */
+.cam-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0.75;
+  transition: all 0.2s ease;
+  z-index: 5;
+}
+.cam-card:hover .cam-controls {
+  opacity: 1;
+}
+.cam-ctrl-btn {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.cam-ctrl-btn:hover {
+  background: rgba(0,0,0,0.75);
+  border-color: rgba(255,255,255,0.25);
+}
+.cam-ctrl-btn.active {
+  background: rgba(34,197,94,0.3);
+  border-color: var(--green);
+}
+
+/* ---- Camera info bar at bottom ---- */
+.cam-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+  z-index: 4;
+  pointer-events: none;
+}
+.cam-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+.cam-stats {
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  display: flex;
+  gap: 8px;
+}
+.cam-stats .pulse {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.cam-stats .pulse.live { background: var(--green); animation: breathe 1.5s infinite; }
+.cam-stats .pulse.warn { background: var(--yellow); }
+.cam-stats .pulse.danger { background: var(--red); animation: breathe 0.8s infinite; }
+
+/* ---- Placeholder ---- */
+.cam-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 13px;
+  background: var(--surface);
+}
+.cam-placeholder .icon {
+  font-size: 28px;
+  opacity: 0.4;
+}
+
+/* ---- Test slot accent ---- */
+.cam-card.test-slot {
+  border-color: rgba(245,158,11,0.3);
+}
+.cam-card.test-slot:hover {
+  border-color: rgba(245,158,11,0.5);
+}
+
+/* ============================================================
+   Fullscreen
+   ============================================================ */
+.cam-card.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  border-radius: 0;
+  border: none;
+  background: #000;
+  animation: fsIn 0.25s ease;
+}
+@keyframes fsIn {
+  from { opacity: 0.8; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.cam-card.fullscreen .cam-controls {
+  opacity: 1;
+  transform: translateY(0);
+  top: 16px;
+  right: 16px;
+}
+.cam-card.fullscreen .cam-ctrl-btn {
+  width: 36px; height: 36px;
+  font-size: 16px;
+}
+.cam-card.fullscreen .cam-bar {
+  padding: 12px 20px;
+}
+.cam-card.fullscreen .cam-name {
+  font-size: 16px;
+}
+.cam-card.fullscreen .cam-stats {
+  font-size: 13px;
+}
+
+/* ============================================================
+   Empty state
+   ============================================================ */
+.empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 20px;
+  color: var(--text-dim);
+}
+.empty-state .icon {
+  font-size: 48px;
+  opacity: 0.3;
+}
+.empty-state .title {
+  font-size: 17px;
+  color: var(--text);
+}
+.empty-state .sub {
+  font-size: 13px;
+}
+
+/* ============================================================
+   Alert Overlays
+   ============================================================ */
+.alert-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background: transparent;
+  transition: background 0.3s;
+}
+.alert-flash.warn {
+  background: rgba(245,158,11,0.08);
+  animation: warnPulse 1s ease-in-out 3;
+}
+.alert-flash.danger {
+  background: rgba(239,68,68,0.06);
+  animation: dangerPulse 0.6s ease-in-out infinite;
+}
+@keyframes warnPulse {
+  0%,100% { background: rgba(245,158,11,0.04); }
+  50%     { background: rgba(245,158,11,0.12); }
+}
+@keyframes dangerPulse {
+  0%,100% { background: rgba(239,68,68,0.03); }
+  50%     { background: rgba(239,68,68,0.1); }
+}
+
+/* ---- Fall alert modal ---- */
+.fall-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0,0,0,0.7);
+}
+.fall-modal.active {
+  display: flex;
+  animation: modalIn 0.3s ease;
+}
+@keyframes modalIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fall-modal-card {
+  background: var(--surface);
+  border: 1px solid rgba(239,68,68,0.4);
+  border-radius: var(--radius);
+  padding: 40px 48px;
+  text-align: center;
+  max-width: 440px;
+  box-shadow: 0 0 60px rgba(239,68,68,0.2);
+  animation: cardUp 0.4s ease;
+}
+@keyframes cardUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.fall-modal-card .alert-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+  animation: bounce 1s infinite;
+}
+@keyframes bounce {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-8px); }
+}
+.fall-modal-card .alert-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+}
+.fall-modal-card .alert-detail {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+.fall-modal-card .alert-btn {
+  font-family: var(--font);
+  font-size: 16px;
+  padding: 12px 48px;
+  border-radius: 28px;
+  border: none;
+  background: var(--red);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(239,68,68,0.3);
+}
+.fall-modal-card .alert-btn:hover {
+  background: #f87171;
+  box-shadow: 0 6px 24px rgba(239,68,68,0.4);
+}
+.fall-modal-card .alert-btn:active {
+  transform: scale(0.96);
+}
+
+/* ============================================================
+   Test actions bar
+   ============================================================ */
+.test-actions {
+  position: absolute;
+  top: 44px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 5;
+  opacity: 1;
+  transition: all 0.2s ease;
+}
+.cam-card.test-slot .test-actions {
+  opacity: 1;
+}
+.test-actions .cam-ctrl-btn {
+  font-size: 11px;
+  width: auto;
+  padding: 0 10px;
+}
+.test-actions .stop-btn {
+  color: var(--red);
+  border-color: rgba(239,68,68,0.3);
+}
+.test-actions .stop-btn:hover {
+  background: rgba(239,68,68,0.2);
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 768px) {
+  .header {
+    padding: 8px 12px;
+  }
+  .header-logo h1 {
+    font-size: 15px;
+  }
+  .header-info {
+    display: none;
+  }
+  .btn {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+  .video-grid {
+    gap: 4px;
+    padding: 4px;
+  }
+  .cam-card {
+    border-radius: 8px;
+    min-height: 100px;
+  }
+  .cam-controls {
+    opacity: 1;
+    top: 4px;
+    right: 4px;
+  }
+  .cam-ctrl-btn {
+    width: 26px; height: 26px;
+    font-size: 11px;
+  }
+  .fall-modal-card {
+    margin: 20px;
+    padding: 28px 24px;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <div class="header-logo">
+      <span class="dot"></span>
+      <h1>SafeSight 监控大厅</h1>
+    </div>
+    <span class="header-info" id="statusInfo">加载中...</span>
+  </div>
+  <div class="header-right">
+    <button class="btn" id="btnOverlay" onclick="toggleOverlay()">显示检测框</button>
+    <button class="btn" id="btnShowAll" onclick="toggleShowAll()">显示全部</button>
+    <button class="btn" onclick="logout()" style="border-color:rgba(239,68,68,0.3);color:var(--red);">退出</button>
+    <a href="/">主页</a>
+  </div>
+</header>
+
+<!-- Video Grid -->
+<div class="video-grid" id="videoGrid">
+  <div class="empty-state">
+    <div class="icon">📡</div>
+    <div class="title">正在连接摄像头...</div>
+    <div class="sub">请稍候，正在加载视频流</div>
+  </div>
+</div>
+
+<!-- Warning flash -->
+<div class="alert-flash" id="warnFlash"></div>
+
+<!-- Fall modal -->
+<div class="fall-modal" id="fallModal">
+  <div class="fall-modal-card">
+    <div class="alert-icon">🚨</div>
+    <div class="alert-title" id="fallTitle">跌倒！请立即处理</div>
+    <div class="alert-detail" id="fallDetail"></div>
+    <button class="alert-btn" onclick="dismissFall()">确 认 处 理</button>
+  </div>
+</div>
+
+<!-- Hidden file input for test upload -->
+<input type="file" id="testFileInput" accept="video/*" style="display:none;" onchange="doUploadTest()">
+
+<script>
+// ============================================================
+// Audio Engine
+// ============================================================
+var audioCtx = null, audioReady = false;
+function initAudio() {
+  if (audioReady) return;
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioReady = true; }
+  catch (e) {}
+}
+document.body.addEventListener('click', initAudio, { once: true });
+
+var _alarmTimer = null;
+function playAlarm() {
+  if (_alarmTimer) clearInterval(_alarmTimer);
+  _alarmTimer = setInterval(function () {
+    if (!audioCtx || !audioReady) return;
+    var t = audioCtx.currentTime;
+    var notes = [780, 980, 580, 780];
+    for (var r = 0; r < 3; r++) {
+      var t0 = t + r * 0.8;
+      notes.forEach(function (f) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(f, t0);
+        g.gain.setValueAtTime(0.18, t0);
+        g.gain.exponentialRampToValueAtTime(0.01, t0 + 0.12);
+        o.start(t0); o.stop(t0 + 0.12);
+        t0 += 0.18;
+      });
+    }
+  }, 2500);
+}
+function stopAlarm() {
+  if (_alarmTimer) { clearInterval(_alarmTimer); _alarmTimer = null; }
+}
+
+// ============================================================
+// Alert Handlers
+// ============================================================
+var _dismissedAt = 0;
+
+function showFallOverlay(data) {
+  if (Date.now() - _dismissedAt < 10000) return;
+  initAudio();
+  var name = data.name || '陌生人';
+  document.getElementById('fallTitle').textContent = '🚨 ' + name + ' 确认摔倒！';
+  document.getElementById('fallDetail').textContent =
+    '老人：' + name + ' ｜ 置信度：' + Math.round((data.confidence || 0) * 100) + '% ｜ ' + (data.timestamp || '');
+  document.getElementById('fallModal').classList.add('active');
+  playAlarm();
+}
+
+function dismissFall() {
+  document.getElementById('fallModal').classList.remove('active');
+  stopAlarm();
+  _dismissedAt = Date.now();
+}
+
+function showWarning(data) {
+  var el = document.getElementById('warnFlash');
+  el.classList.add('warn');
+  // Short soft beep
+  if (audioCtx && audioReady) {
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(660, audioCtx.currentTime);
+    g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+    o.start(); o.stop(audioCtx.currentTime + 0.25);
+  }
+  // Auto-dismiss after 3 seconds
+  setTimeout(function () { el.classList.remove('warn'); }, 3000);
+}
+
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' || e.key === 'Enter') dismissFall();
+});
+
+// ============================================================
+// SSE — Server-Sent Events for alerts
+// ============================================================
+function connectSSE() {
+  var es = new EventSource('/events');
+  es.onmessage = function (e) {
+    if (!e.data) return;
+    try {
+      var d = JSON.parse(e.data);
+      if (d.type === 'red' || d.type === 'fall' || d.level === 2) showFallOverlay(d);
+      else if (d.type === 'yellow' || d.type === 'warning' || d.level === 1) showWarning(d);
+    } catch (_) {}
+  };
+  es.onerror = function () { es.close(); setTimeout(connectSSE, 3000); };
+}
+connectSSE();
+
+// ============================================================
+// Camera Grid State
+// ============================================================
+var cameras = [];
+var _lastIds = '';
+var _testActive = false;
+var _testChanged = true;
+var _showAll = false;
+var _lastShowAll = false;
+var _showOverlay = localStorage.getItem('showOverlay') === '1';
+
+document.addEventListener('DOMContentLoaded', function () {
+  applyOverlay();
+});
+
+function toggleOverlay() {
+  _showOverlay = !_showOverlay;
+  localStorage.setItem('showOverlay', _showOverlay ? '1' : '0');
+  applyOverlay();
+  _testChanged = true;
+  render();
+}
+
+function applyOverlay() {
+  var btn = document.getElementById('btnOverlay');
+  if (_showOverlay) {
+    btn.textContent = '✓ 检测框已显示';
+    btn.className = 'btn active';
+  } else {
+    btn.textContent = '显示检测框';
+    btn.className = 'btn';
+  }
+}
+
+function logout(){
+  fetch('/api/logout', {method:'POST'}).then(function(){
+    window.location.href='/login';
+  });
+}
+
+var _retryCount = 0;
+function loadAll() {
+  fetch('/api/cameras').then(function (r) { return r.json(); }).then(function (list) {
+    _retryCount = 0;
+    cameras = list || [];
+    render();
+  }).catch(function () {
+    _retryCount++;
+    if (_retryCount < 10) setTimeout(loadAll, 1000);
+    else document.getElementById('videoGrid').innerHTML =
+      '<div class="empty-state"><div class="icon">⚠️</div><div class="title">无法连接服务器</div><div class="sub">请检查服务是否启动</div></div>';
+  });
+}
+
+function render() {
+  var ids = cameras.map(function (c) { return c.id + '|' + c.enabled; }).join(',');
+  if (ids === _lastIds && !_testChanged && _showAll === _lastShowAll) {
+    updateStats();
+    return;
+  }
+  _lastIds = ids;
+  _lastShowAll = _showAll;
+  _testChanged = false;
+
+  var visible = _showAll ? cameras : cameras.filter(function (c) { return c.enabled; });
+  var grid = document.getElementById('videoGrid');
+  var total = visible.length + 1;
+  var cols = total <= 1 ? 1 : total <= 4 ? 2 : total <= 9 ? 3 : 4;
+  grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+
+  var enabledCount = cameras.filter(function (c) { return c.enabled; }).length;
+  document.getElementById('statusInfo').textContent =
+    (_showAll ? '全部 ' : '已开启 ') + enabledCount + '/' + cameras.length + ' 路';
+
+  // Build cards
+  var html = '';
+
+  // Test slot
+  html += '<div class="cam-card test-slot' + (_testActive ? '' : ' disabled') + '" id="box-test">';
+  if (_testActive) {
+    html += '<img src="/test_feed' + (_showOverlay ? '?overlay=1' : '') + '" alt="模拟测试">';
+  }
+  html += '<div class="cam-bar"><span class="cam-name" style="color:#f59e0b;">🧪 模拟测试</span></div>';
+  html += '<div class="cam-controls">';
+  html += '<button class="cam-ctrl-btn" onclick="toggleFS(\'box-test\')" title="全屏">⛶</button>';
+  html += '</div>';
+  html += '<div class="test-actions">';
+  html += '<button class="cam-ctrl-btn" onclick="uploadTestVideo()">' + (_testActive ? '更换' : '上传') + '</button>';
+  if (_testActive) {
+    html += '<button class="cam-ctrl-btn stop-btn" onclick="stopTest()">停止</button>';
+  }
+  html += '</div>';
+  if (!_testActive) {
+    html += '<div class="cam-placeholder"><div class="icon">🎬</div>上传视频模拟跌倒测试</div>';
+  }
+  html += '</div>';
+
+  // Camera cards
+  html += visible.map(function (c) {
+    var on = c.enabled;
+    var overlayUrl = _showOverlay ? '/debug' : '';
+    return '<div class="cam-card' + (on ? '' : ' disabled') + '" id="box-' + c.id + '">' +
+      (on ? '<img id="img-' + c.id + '" src="/video_feed/' + c.id + overlayUrl + '" alt="">' : '') +
+      '<div class="cam-bar">' +
+      '<span class="cam-name">' + esc(c.name) + '</span>' +
+      '<span class="cam-stats"><span id="fps-' + c.id + '"></span></span>' +
+      '</div>' +
+      '<div class="cam-controls">' +
+      '<button class="cam-ctrl-btn' + (on ? ' active' : '') + '" onclick="toggleCam(' + c.id + ')" title="' + (on ? '暂停' : '开启') + '">' + (on ? '⏸' : '▶') + '</button>' +
+      '<button class="cam-ctrl-btn" onclick="toggleFS(\'box-' + c.id + '\')" title="全屏">⛶</button>' +
+      '</div>' +
+      (on ? '' : '<div class="cam-placeholder"><div class="icon">📷</div>已关闭 — 点击 ▶ 开启</div>') +
+      '</div>';
+  }).join('');
+
+  grid.innerHTML = html;
+}
+
+function updateStats() {
+  cameras.forEach(function (c) {
+    if (!c.enabled) return;
+    var el = document.getElementById('fps-' + c.id);
+    if (!el) return;
+    var pf = c.fps > 0 ? (c.p_fall || 0) : 0;
+    var cls = pf >= 0.75 ? 'danger' : pf >= 0.55 ? 'warn' : 'live';
+    var dot = '<span class="pulse ' + cls + '"></span>';
+    el.innerHTML = dot + 'FPS:' + Math.round(c.fps) + ' P:' + pf.toFixed(2);
+  });
+}
+
+// ============================================================
+// Camera Toggle
+// ============================================================
+function toggleCam(id) {
+  fetch('/api/camera/' + id + '/toggle', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.ok) return;
+    var c = cameras.find(function (c) { return c.id === id; });
+    if (c) c.enabled = d.enabled;
+    render();
+  });
+}
+
+// ============================================================
+// Test Video
+// ============================================================
+function uploadTestVideo() { document.getElementById('testFileInput').click(); }
+function doUploadTest() {
+  var file = document.getElementById('testFileInput').files[0];
+  if (!file) return;
+  var fd = new FormData(); fd.append('video', file);
+  fetch('/test', { method: 'POST', body: fd }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) { _testActive = true; _testChanged = true; render(); }
+    else alert('上传失败: ' + (d.error || ''));
+  });
+}
+function stopTest() {
+  fetch('/test/reset').then(function (r) { return r.json(); }).then(function (d) {
+    _testActive = false; _testChanged = true; render();
+  });
+}
+
+// ============================================================
+// Show All Toggle
+// ============================================================
+function toggleShowAll() {
+  _showAll = !_showAll;
+  _testChanged = true;
+  var btn = document.getElementById('btnShowAll');
+  btn.textContent = _showAll ? '仅已开启' : '显示全部';
+  if (_showAll) { btn.className = 'btn accent'; }
+  else { btn.className = 'btn'; }
+  render();
+}
+
+// ============================================================
+// Fullscreen
+// ============================================================
+function toggleFS(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  document.querySelectorAll('.cam-card.fullscreen').forEach(function (other) {
+    if (other.id !== id) other.classList.remove('fullscreen');
+  });
+  el.classList.toggle('fullscreen');
+}
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.cam-card.fullscreen').forEach(function (el) {
+      el.classList.remove('fullscreen');
+    });
+  }
+});
+
+// ============================================================
+// Helpers
+// ============================================================
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// ============================================================
+// Init
+// ============================================================
+setInterval(loadAll, 3000);
+loadAll();
+</script>
+</body>
+</html>

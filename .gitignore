@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Models (large)
+*.pt
+*.onnx
+*.engine
+
+# Database
+*.db
+
+# Logs
+logs/
+
+# Uploads / screenshots
+static/falls/*
+static/uploads/*
+!static/falls/.gitkeep
+!static/uploads/.gitkeep
+
+# Backups
+_snapshot_*/
+_backup_*/
+*.bak
+*.bak2
+
+# Training output
+train_output/
+runs/
+
+# Datasets
+dataset/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large zip
+*.zip
+数据/

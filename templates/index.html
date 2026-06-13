@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafeSight — 多模态跌倒监测预警系统</title>
+<style>
+/* ============================================================
+   SafeSight Homepage — Inspired by modern AI product design
+   Color scheme preserved from original
+   ============================================================ */
+:root {
+  --bg: #0a0e14;
+  --card: #111922;
+  --border: #1e2d3d;
+  --border-hover: #2d4055;
+  --accent: #4fc3f7;
+  --accent-dim: rgba(79,195,247,0.08);
+  --green: #4caf50;
+  --yellow: #ff9800;
+  --red: #f44336;
+  --text: #c8d8e0;
+  --text-bright: #e8edf2;
+  --muted: #5a7a8a;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ---- Subtle background ambient ---- */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(79,195,247,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 80% 80%, rgba(79,195,247,0.02) 0%, transparent 60%);
+}
+
+/* ============================================================
+   Header — minimal, clean
+   ============================================================ */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 32px;
+  background: rgba(10,14,20,0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text);
+}
+.header-logo .icon {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), #0288d1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+}
+.header-logo .name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: -0.3px;
+}
+.header-logo .ver {
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+  padding: 2px 8px;
+  border-radius: 8px;
+  margin-left: 4px;
+}
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.header-nav a {
+  font-size: 13px;
+  color: var(--text-dim, var(--muted));
+  text-decoration: none;
+  padding: 7px 14px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+.header-nav a:hover {
+  color: var(--text-bright);
+  background: rgba(255,255,255,0.04);
+}
+.header-nav a.primary {
+  color: #000;
+  background: var(--accent);
+  font-weight: 600;
+}
+.header-nav a.primary:hover {
+  background: #6ad0f9;
+  box-shadow: 0 4px 16px rgba(79,195,247,0.3);
+}
+
+/* ============================================================
+   Hero Section
+   ============================================================ */
+.hero {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 80px 24px 48px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.hero-badge {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(79,195,247,0.2);
+  padding: 5px 14px;
+  border-radius: 20px;
+  margin-bottom: 24px;
+  letter-spacing: 1px;
+}
+.hero h1 {
+  font-size: 44px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.25;
+  letter-spacing: -1px;
+  margin-bottom: 16px;
+}
+.hero h1 span {
+  background: linear-gradient(135deg, var(--accent), #81d4fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero p {
+  font-size: 17px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 36px;
+}
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 28px;
+  border-radius: 12px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  box-shadow: 0 4px 20px rgba(79,195,247,0.2);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(79,195,247,0.35);
+}
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ============================================================
+   Stats Bar
+   ============================================================ */
+.stats-section {
+  position: relative;
+  z-index: 1;
+  max-width: 1000px;
+  margin: 0 auto 48px;
+  padding: 0 24px;
+}
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 20px;
+  text-align: center;
+  transition: all 0.25s ease;
+}
+.stat-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.stat-value {
+  font-size: 36px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.stat-value.accent { color: var(--accent); }
+.stat-value.green  { color: var(--green); }
+.stat-value.yellow { color: var(--yellow); }
+.stat-label {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+/* ============================================================
+   Feature Section
+   ============================================================ */
+.features-section {
+  position: relative;
+  z-index: 1;
+  max-width: 1000px;
+  margin: 0 auto 60px;
+  padding: 0 24px;
+}
+.section-title {
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 28px;
+}
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.feature-card {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  text-decoration: none;
+  color: var(--text);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.feature-card:hover::before {
+  opacity: 1;
+}
+.feature-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(79,195,247,0.1) inset;
+}
+.feature-card.primary {
+  border-color: rgba(79,195,247,0.3);
+  background: linear-gradient(180deg, rgba(79,195,247,0.04) 0%, transparent 50%);
+}
+.feature-icon {
+  width: 46px; height: 46px;
+  border-radius: 12px;
+  background: rgba(79,195,247,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 18px;
+}
+.feature-card.primary .feature-icon {
+  background: linear-gradient(135deg, var(--accent), #0288d1);
+}
+.feature-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+.feature-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   Alert Section (recent report)
+   ============================================================ */
+.alert-section {
+  position: relative;
+  z-index: 1;
+  max-width: 1000px;
+  margin: 0 auto 60px;
+  padding: 0 24px;
+}
+.alert-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+}
+.alert-card .alert-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.alert-card .alert-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+.alert-card .alert-badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(244,67,54,0.1);
+  color: var(--red);
+  border: 1px solid rgba(244,67,54,0.2);
+}
+.alert-card .report-body {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text);
+}
+.alert-card .empty {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+.footer {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 32px 24px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ============================================================
+   Alert Overlays (fall / warning)
+   ============================================================ */
+.alert-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.alert-overlay.active { display: flex; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.alert-overlay.warn  { background: rgba(245,158,11,0.08); }
+.alert-overlay.danger { background: rgba(0,0,0,0.75); }
+
+.alert-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px 48px;
+  text-align: center;
+  max-width: 440px;
+  animation: slideUp 0.35s ease;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.alert-box .icon { font-size: 52px; margin-bottom: 16px; }
+.alert-box h2 { font-size: 22px; color: #fff; margin-bottom: 8px; }
+.alert-box p  { font-size: 14px; color: var(--muted); margin-bottom: 28px; line-height: 1.6; }
+.alert-box button {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 40px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.danger .alert-box { border-color: rgba(244,67,54,0.4); box-shadow: 0 0 60px rgba(244,67,54,0.15); }
+.danger .alert-box button {
+  background: var(--red);
+  color: #fff;
+}
+.danger .alert-box button:hover {
+  background: #f87171;
+  box-shadow: 0 6px 24px rgba(244,67,54,0.3);
+}
+.warn .alert-box button {
+  background: var(--accent);
+  color: #000;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 768px) {
+  .header {
+    padding: 10px 16px;
+  }
+  .header-nav a {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+  .hero {
+    padding: 48px 20px 32px;
+  }
+  .hero h1 {
+    font-size: 30px;
+  }
+  .hero p {
+    font-size: 15px;
+  }
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .features-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     Header
+     ============================================================ -->
+<header class="header">
+  <a href="/" class="header-logo">
+    <div class="icon">◉</div>
+    <span class="name">SafeSight</span>
+    <span class="ver">v2.0</span>
+  </a>
+  <nav class="header-nav">
+    <a href="/hall">监控大厅</a>
+    <a href="/register">人脸注册</a>
+    <a href="/history">跌倒历史</a>
+    <a href="/cameras">摄像头</a>
+    <a href="/hall" class="primary">进入系统</a>
+  </nav>
+</header>
+
+<!-- ============================================================
+     Hero
+     ============================================================ -->
+<section class="hero">
+  <div class="hero-badge">● 系统运行中</div>
+  <h1>多模态 <span>跌倒监测</span> 预警系统</h1>
+  <p>基于 YOLO 姿态估计、InsightFace 人脸识别与 DeepSeek AI 分析，<br>为养老机构提供 24/7 全天候智能守护。</p>
+  <div class="hero-actions">
+    <a href="/hall" class="btn btn-primary">进入监控大厅</a>
+    <a href="/test" class="btn btn-outline">上传视频测试</a>
+  </div>
+</section>
+
+<!-- ============================================================
+     Stats
+     ============================================================ -->
+<section class="stats-section">
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value accent" id="statCameras">-</div>
+      <div class="stat-label">在线摄像头</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value green" id="statFaces">-</div>
+      <div class="stat-label">已注册人员</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value yellow" id="statEvents">-</div>
+      <div class="stat-label">今日告警</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="statRuntime" style="color:#c8d8e0;">-</div>
+      <div class="stat-label">运行时长</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     Feature Cards
+     ============================================================ -->
+<section class="features-section">
+  <div class="section-title">核心功能</div>
+  <div class="features-grid">
+    <a href="/hall" class="feature-card primary">
+      <div class="feature-icon">&#x25A3;</div>
+      <div class="feature-name">实时监控大厅</div>
+      <div class="feature-desc">多路摄像头同时预览，支持拖拽布局与全屏查看，实时骨架叠加</div>
+    </a>
+    <a href="/register" class="feature-card">
+      <div class="feature-icon">&#x1F464;</div>
+      <div class="feature-name">人脸注册识别</div>
+      <div class="feature-desc">InsightFace 引擎，拍照录入即可自动识别跌倒者身份</div>
+    </a>
+    <a href="/cameras" class="feature-card">
+      <div class="feature-icon">&#x2699;</div>
+      <div class="feature-name">摄像头管理</div>
+      <div class="feature-desc">USB / RTSP / NVR 全支持，ONVIF 自动发现，批量配置</div>
+    </a>
+    <a href="/test" class="feature-card">
+      <div class="feature-icon">&#x1F3AC;</div>
+      <div class="feature-name">离线模拟测试</div>
+      <div class="feature-desc">上传视频离线测试跌倒检测效果，支持暂停/逐帧分析</div>
+    </a>
+    <a href="/history" class="feature-card">
+      <div class="feature-icon">&#x1F4C4;</div>
+      <div class="feature-name">跌倒事件记录</div>
+      <div class="feature-desc">自动截图保存 + AI 智能分析报告，支持永久存档标记</div>
+    </a>
+    <a href="/manage" class="feature-card">
+      <div class="feature-icon">&#x1F4CB;</div>
+      <div class="feature-name">人员数据管理</div>
+      <div class="feature-desc">编辑/删除注册人员，管理面部样本库，提升识别精度</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================
+     Recent Alert
+     ============================================================ -->
+<section class="alert-section">
+  <div class="alert-card">
+    <div class="alert-header">
+      <span class="alert-title">最近跌倒报告</span>
+      <span class="alert-badge" id="alertBadge" style="display:none;">新告警</span>
+    </div>
+    <div id="reportContent">
+      <div class="empty">暂无跌倒记录，系统运行正常</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     Footer
+     ============================================================ -->
+<footer class="footer">
+  SafeSight v2.0 &middot; 基于 YOLOv8 + InsightFace + DeepSeek &middot; 广东理工学院
+</footer>
+
+<!-- ============================================================
+     Alert Overlays
+     ============================================================ -->
+<div class="alert-overlay warn" id="warnOverlay">
+  <div class="alert-box">
+    <div class="icon">⚠️</div>
+    <h2>⚠️ 可能摔倒</h2>
+    <p>检测到异常姿态，请关注观察</p>
+    <button onclick="dismissAlert()">知道了</button>
+  </div>
+</div>
+<div class="alert-overlay danger" id="fallOverlay">
+  <div class="alert-box">
+    <div class="icon">🚨</div>
+    <h2 id="fallTitle">🚨 确认摔倒！请立即处理</h2>
+    <p id="fallDetail"></p>
+    <button onclick="dismissAlert()">确 认 处 理</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Audio
+// ============================================================
+var audioCtx = null, audioReady = false;
+document.body.addEventListener('click', function init() {
+  if (audioReady) return;
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioReady = true; }
+  catch (e) {}
+}, { once: true });
+
+var _alarmTimer = null;
+function playAlarm() {
+  if (_alarmTimer) clearInterval(_alarmTimer);
+  _alarmTimer = setInterval(function () {
+    if (!audioCtx || !audioReady) return;
+    var t = audioCtx.currentTime, notes = [780, 980, 580, 780];
+    for (var r = 0; r < 3; r++) {
+      var t0 = t + r * 0.8;
+      notes.forEach(function (f) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(f, t0);
+        g.gain.setValueAtTime(0.2, t0);
+        g.gain.exponentialRampToValueAtTime(0.01, t0 + 0.12);
+        o.start(t0); o.stop(t0 + 0.12);
+        t0 += 0.18;
+      });
+    }
+  }, 2500);
+}
+function stopAlarm() {
+  if (_alarmTimer) { clearInterval(_alarmTimer); _alarmTimer = null; }
+}
+
+// ============================================================
+// Alerts
+// ============================================================
+var _dismissedAt = 0;
+function showFallOverlay(data) {
+  if (Date.now() - _dismissedAt < 10000) return;
+  var name = data.name || '陌生人';
+  document.getElementById('fallTitle').textContent = '⚠️ ' + name + ' 疑似跌倒';
+  document.getElementById('fallDetail').textContent =
+    '老人：' + name + ' ｜ 置信度：' + Math.round((data.confidence || 0) * 100) + '% ｜ ' + (data.timestamp || '');
+  document.getElementById('fallOverlay').classList.add('active');
+  playAlarm();
+}
+function showWarning() {
+  document.getElementById('warnOverlay').classList.add('active');
+  if (audioCtx && audioReady) {
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.setValueAtTime(660, audioCtx.currentTime);
+    g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+    o.start(); o.stop(audioCtx.currentTime + 0.3);
+  }
+  setTimeout(function () { document.getElementById('warnOverlay').classList.remove('active'); }, 2000);
+}
+function dismissAlert() {
+  document.getElementById('fallOverlay').classList.remove('active');
+  document.getElementById('warnOverlay').classList.remove('active');
+  stopAlarm();
+  _dismissedAt = Date.now();
+}
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' || e.key === 'Enter') dismissAlert();
+});
+
+// ============================================================
+// SSE
+// ============================================================
+(function connect() {
+  var es = new EventSource('/events');
+  es.onmessage = function (e) {
+    if (!e.data) return;
+    try {
+      var d = JSON.parse(e.data);
+      if (d.type === 'red' || d.type === 'fall' || d.level === 2) showFallOverlay(d);
+      else if (d.type === 'yellow' || d.type === 'warning' || d.level === 1) showWarning(d);
+    } catch (_) {}
+  };
+  es.onerror = function () { es.close(); setTimeout(connect, 3000); };
+})();
+
+// ============================================================
+// Dashboard stats refresh
+// ============================================================
+var startTime = Date.now();
+function fmt(n) { return n < 10 ? '0' + n : '' + n; }
+
+function refreshStats() {
+  fetch('/api/health').then(function (r) { return r.json(); }).then(function (h) {
+    if (h.cameras) {
+      var online = h.cameras.filter(function (c) { return c.fps > 0; }).length;
+      document.getElementById('statCameras').textContent = online + '/' + h.cameras.length;
+    }
+  }).catch(function () {});
+  var mins = Math.floor((Date.now() - startTime) / 60000);
+  var el = document.getElementById('statRuntime');
+  el.textContent = mins < 60 ? mins + '分钟' : Math.floor(mins / 60) + '小时';
+}
+function refreshFaces() {
+  fetch('/api/faces').then(function (r) { return r.json(); }).then(function (d) {
+    document.getElementById('statFaces').textContent = Array.isArray(d) ? d.length : '-';
+  }).catch(function () {});
+}
+function refreshEvents() {
+  fetch('/api/events?limit=999').then(function (r) { return r.json(); }).then(function (d) {
+    var today = new Date().toISOString().slice(0, 10);
+    var cnt = (d || []).filter(function (e) { return (e.created_at || '').startsWith(today); }).length;
+    document.getElementById('statEvents').textContent = cnt;
+  }).catch(function () {});
+}
+function refreshReport() {
+  fetch('/api/latest_report').then(function (r) { return r.json(); }).then(function (d) {
+    var el = document.getElementById('reportContent');
+    if (!d) {
+      el.innerHTML = '<div class="empty">暂无跌倒记录，系统运行正常</div>';
+    } else if (d.pending) {
+      el.innerHTML = '<div class="report-body" style="color:var(--yellow);">AI 分析中…</div>';
+    } else {
+      el.innerHTML = '<div class="report-body">' + esc(d.report || '') + '</div>';
+      document.getElementById('alertBadge').style.display = 'inline-block';
+    }
+  }).catch(function () {});
+}
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// Initial load
+refreshStats(); refreshFaces(); refreshEvents(); refreshReport();
+setInterval(refreshStats, 5000);
+setInterval(refreshFaces, 30000);
+setInterval(refreshEvents, 30000);
+setInterval(refreshReport, 15000);
+</script>
+</body>
+</html>

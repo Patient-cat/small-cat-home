@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>摄像头管理</title>
+<style>
+:root { --bg:#0a0e14; --card:#111922; --border:#1e2d3d; --accent:#4fc3f7; --green:#4caf50; --red:#f44336; --orange:#ff9800; --text:#c8d8e0; --muted:#5a7a8a; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Microsoft YaHei',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+header { padding:14px 20px; background:var(--card); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:center; gap:16px; }
+header h1 { font-size:20px; color:var(--accent); font-weight:400; }
+.nav-link { color:var(--accent); text-decoration:none; font-size:13px; border:1px solid var(--accent); padding:5px 14px; border-radius:14px; }
+.nav-link:hover { background:var(--accent); color:#000; }
+.container { max-width:700px; margin:20px auto; padding:0 16px; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:14px; }
+.card h2 { font-size:17px; color:var(--accent); font-weight:400; margin-bottom:14px; }
+
+.cam-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 14px; border:1px solid var(--border); border-radius:8px;
+    margin-bottom:8px; cursor:pointer; transition:border-color .2s;
+}
+.cam-row:hover { border-color:var(--accent); }
+.cam-row .name { font-size:15px; font-weight:500; }
+.cam-row .src { font-size:12px; color:var(--muted); }
+.cam-badge { font-size:11px; padding:2px 10px; border-radius:10px; }
+.cam-badge.on { background:#1b3a2a; color:var(--green); border:1px solid var(--green); }
+.cam-badge.off { background:#3a1b1b; color:var(--red); border:1px solid var(--red); }
+.btn-delete {
+    padding:5px 12px; font-size:12px; border:1px solid var(--red); background:transparent;
+    color:var(--red); border-radius:12px; cursor:pointer; margin-left:10px;
+}
+.btn-delete:hover { background:var(--red); color:#fff; }
+
+.add-modes { display:flex; gap:8px; margin-bottom:14px; }
+.add-mode-btn {
+    flex:1; padding:10px; border:1px solid var(--border); border-radius:8px;
+    background:transparent; color:var(--text); cursor:pointer; font-size:14px; text-align:center;
+}
+.add-mode-btn.active { border-color:var(--accent); color:var(--accent); }
+.add-mode-btn small { display:block; font-size:11px; color:var(--muted); margin-top:2px; }
+
+.add-row { display:flex; gap:8px; align-items:flex-end; }
+.add-row input { flex:1; padding:9px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:14px; outline:none; }
+.add-row input:focus { border-color:var(--accent); }
+.btn-add { padding:9px 20px; background:var(--green); color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold; white-space:nowrap; font-size:14px; }
+.btn-add:hover { opacity:.85; }
+.add-hint { font-size:12px; color:var(--muted); margin-top:8px; }
+
+/* Scan section */
+.scan-section { border-top:1px solid var(--border); padding-top:14px; margin-top:16px; }
+.scan-btn {
+    width:100%; padding:12px; background:var(--accent); color:#000;
+    border:none; border-radius:8px; font-size:15px; font-weight:bold; cursor:pointer;
+}
+.scan-btn:hover { opacity:.85; }
+.scan-btn:disabled { opacity:.5; cursor:not-allowed; }
+.scan-status { font-size:12px; color:var(--muted); margin-top:6px; text-align:center; min-height:18px; }
+
+/* Device cards */
+.scan-results { margin-top:12px; }
+.scan-results h3 { font-size:14px; color:var(--accent); margin-bottom:10px; }
+.device-card {
+    background:var(--bg); border:1px solid var(--border); border-radius:10px;
+    padding:14px 16px; margin-bottom:10px;
+}
+.device-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.device-header .info { flex:1; }
+.device-ip { font-size:15px; font-weight:600; color:#fff; }
+.device-meta { font-size:12px; color:var(--muted); margin-top:2px; }
+.badge-nvr {
+    display:inline-block; font-size:11px; padding:2px 8px;
+    background:#1a237e; color:#64b5f6; border:1px solid #283593;
+    border-radius:4px; margin-left:6px;
+}
+.badge-ipc {
+    display:inline-block; font-size:11px; padding:2px 8px;
+    background:#1b3a2a; color:var(--green); border:1px solid var(--green);
+    border-radius:4px; margin-left:6px;
+}
+.device-creds { display:flex; gap:8px; margin-bottom:10px; }
+.device-creds input {
+    flex:1; padding:7px 10px; border:1px solid var(--border); border-radius:6px;
+    background:var(--card); color:var(--text); font-size:13px; outline:none;
+}
+.device-creds input:focus { border-color:var(--accent); }
+.btn-try-login {
+    padding:7px 14px; background:var(--accent); color:#000; border:none;
+    border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;
+}
+.nvr-config { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+.nvr-config label { font-size:12px; color:var(--muted); }
+.nvr-config input[type=number] {
+    width:60px; padding:6px 8px; border:1px solid var(--border); border-radius:6px;
+    background:var(--card); color:var(--text); font-size:13px; text-align:center; outline:none;
+}
+.nvr-config input[type=number]:focus { border-color:var(--accent); }
+.nvr-config select {
+    padding:6px 8px; border:1px solid var(--border); border-radius:6px;
+    background:var(--card); color:var(--text); font-size:13px; outline:none;
+}
+.nvr-config select:focus { border-color:var(--accent); }
+
+.url-list {
+    background:#000; border:1px solid var(--border); border-radius:8px;
+    padding:10px 12px; margin-bottom:10px; display:none; max-height:200px; overflow-y:auto;
+}
+.url-list.open { display:block; }
+.url-list .url-item {
+    font-family:'Consolas','Courier New',monospace; font-size:12px;
+    padding:4px 0; color:var(--text); border-bottom:1px solid rgba(255,255,255,.05);
+    display:flex; align-items:center; justify-content:space-between;
+}
+.url-item .ch-label { color:var(--muted); margin-right:8px; white-space:nowrap; }
+.url-item .ch-url { flex:1; word-break:break-all; }
+.url-item .ch-test { font-size:10px; color:var(--accent); cursor:pointer; margin-left:8px; white-space:nowrap; }
+.url-item .ch-test:hover { text-decoration:underline; }
+
+.status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
+.status-dot.testing { background:var(--orange); animation:pulse .8s infinite; }
+.status-dot.connected { background:var(--green); }
+.status-dot.failed { background:var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.device-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.btn-action {
+    padding:7px 16px; border:none; border-radius:6px; cursor:pointer;
+    font-size:13px; font-weight:bold;
+}
+.btn-action.primary { background:var(--green); color:#fff; }
+.btn-action.primary:hover { opacity:.85; }
+.btn-action.secondary { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+.btn-action.secondary:hover { background:var(--accent); color:#000; }
+.btn-action.danger { background:transparent; color:var(--red); border:1px solid var(--red); }
+
+.added-mark {
+    display:inline-block; font-size:11px; padding:2px 8px;
+    background:var(--green); color:#fff; border-radius:4px; margin-left:6px;
+}
+
+.toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); padding:10px 24px; border-radius:8px; font-size:14px; z-index:9999; display:none; }
+.toast.success { display:block; background:#1b3a2a; border:1px solid #2e7d32; color:#81c784; }
+.toast.error { display:block; background:#3a1b1b; border:1px solid var(--red); color:#ef9a9a; }
+</style>
+</head>
+<body>
+<header>
+    <h1>摄像头管理</h1>
+    <a href="/" class="nav-link">← 返回主页</a>
+</header>
+<div class="container">
+    <div class="card">
+        <h2>已配置摄像头</h2>
+        <div id="camList"></div>
+    </div>
+
+    <div class="card">
+        <h2>添加摄像头</h2>
+        <div class="add-modes">
+            <button class="add-mode-btn active" id="modeUSB" onclick="setMode('usb')">
+                USB 摄像头<small>笔记本/外接 USB</small>
+            </button>
+            <button class="add-mode-btn" id="modeRTSP" onclick="setMode('rtsp')">
+                网络摄像头<small>海康/RTSP 流</small>
+            </button>
+        </div>
+        <div class="add-row">
+            <input type="text" id="addSource" value="2" placeholder="设备编号，如 0、1、2...">
+            <button class="btn-add" onclick="addCamera()">+ 添加</button>
+        </div>
+        <div class="add-hint" id="addHint">插入 USB 摄像头后，填下一个可用编号</div>
+
+        <!-- Scan Network section -->
+        <div class="scan-section">
+            <button class="scan-btn" id="btnScan" onclick="scanNetwork()">扫描网络摄像头</button>
+            <button class="scan-btn" id="btnScanUSB" onclick="scanUSB()" style="background:var(--green);">扫描本地摄像头</button>
+            <div class="scan-status" id="scanStatus"></div>
+            <div class="scan-results" id="scanResults" style="display:none;">
+                <h3>发现 <span id="scanCount">0</span> 个设备</h3>
+                <div id="deviceList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+let cameraOnMap = {};
+let addMode = 'usb';
+let scanResults = [];
+let nvrConfigs = {};
+let addingInProgress = false;
+
+// ============================================================
+// Camera list
+// ============================================================
+async function loadList() {
+    const resp = await fetch('/api/cameras');
+    const cams = await resp.json();
+    document.getElementById('camList').innerHTML = cams.map(c => {
+        if (cameraOnMap[c.id] === undefined) cameraOnMap[c.id] = c.enabled !== false;
+        const on = cameraOnMap[c.id];
+        const fps = c.fps || 0;
+        const statusText = fps > 0 ? `运行中 (${fps}FPS)` : (on ? '等待连接' : '已关闭');
+        const badgeClass = fps > 0 ? 'on' : (on ? '' : 'off');
+        const badgeStyle = badgeClass ? `cam-badge ${badgeClass}` : 'cam-badge';
+        return `<div class="cam-row" onclick="toggleCam(${c.id})">
+            <div>
+                <div class="name">${esc(c.name)} <span class="${badgeStyle}">${statusText}</span></div>
+                <div class="src">${c.source}</div>
+            </div>
+            ${cams.length>1?`<button class="btn-delete" onclick="event.stopPropagation();deleteCam(${c.id})">删除</button>`:''}
+        </div>`;
+    }).join('');
+    document.getElementById('addSource').value = cams.length;
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function toggleCam(id) {
+    try {
+        const resp = await fetch(`/api/camera/${id}/toggle`, { method: 'POST' });
+        const d = await resp.json();
+        cameraOnMap[id] = d.enabled;
+    } catch(e) {}
+    loadList();
+}
+
+function setMode(mode) {
+    addMode = mode;
+    document.getElementById('modeUSB').classList.toggle('active', mode==='usb');
+    document.getElementById('modeRTSP').classList.toggle('active', mode==='rtsp');
+    const hint = document.getElementById('addHint');
+    if (mode === 'usb') {
+        document.getElementById('addSource').placeholder = '设备编号，如 0、1、2...';
+        document.getElementById('addSource').value = '2';
+        hint.textContent = '插入 USB 摄像头后，填下一个可用编号';
+    } else {
+        document.getElementById('addSource').placeholder = 'rtsp://admin:密码@IP:554/Streaming/Channels/101';
+        document.getElementById('addSource').value = '';
+        hint.innerHTML = '海康 NVR 格式: rtsp://admin:密码@IP:554/Streaming/Channels/101<br>通道1主码流=101, 子码流=102; 通道2=201... 或点击下方"扫描网络摄像头"自动发现';
+    }
+}
+
+async function deleteCam(id) {
+    if (!confirm('确定删除？需重启服务生效。')) return;
+    const resp = await fetch(`/api/cameras?id=${id}`, { method:'DELETE' });
+    const d = await resp.json();
+    showToast(d.message, d.ok?'success':'error');
+    if (d.ok) loadList();
+}
+
+async function addCamera() {
+    let src = document.getElementById('addSource').value.trim();
+    if (!src) return showToast('请填写设备来源', 'error');
+    if (addMode === 'usb' && /^\d+$/.test(src)) src = parseInt(src);
+    if (addMode === 'usb' && typeof src === 'number' && src < 0) return showToast('设备编号不能为负数', 'error');
+    const resp = await fetch('/api/cameras', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source:src})
+    });
+    const d = await resp.json();
+    showToast(d.message, d.ok?'success':'error');
+    if (d.ok) loadList();
+}
+
+// ============================================================
+// USB scan
+// ============================================================
+async function scanUSB() {
+    const btn = document.getElementById('btnScanUSB');
+    const status = document.getElementById('scanStatus');
+    btn.disabled = true;
+    btn.textContent = '扫描中...';
+    status.textContent = '';
+    try {
+        const resp = await fetch('/api/cameras/scan-usb', { method: 'POST' });
+        const data = await resp.json();
+        btn.textContent = '扫描本地摄像头';
+        btn.disabled = false;
+        if (data.ok && data.found > 0) {
+            status.textContent = `发现 ${data.found} 个本地摄像头` +
+                (data.added.length > 0 ? `，已添加 ${data.added.length} 个` : '（已全部在列表中）');
+            if (data.added.length > 0) {
+                loadList(); // refresh the camera table
+            }
+        } else if (data.ok) {
+            status.textContent = '未发现本地摄像头';
+        } else {
+            status.textContent = data.error || '扫描失败';
+        }
+    } catch (e) {
+        btn.textContent = '扫描本地摄像头';
+        btn.disabled = false;
+        status.textContent = '扫描出错: ' + e.message;
+    }
+}
+
+// Network scan
+// ============================================================
+async function scanNetwork() {
+    const btn = document.getElementById('btnScan');
+    const status = document.getElementById('scanStatus');
+    const resultsDiv = document.getElementById('scanResults');
+
+    btn.disabled = true;
+    btn.textContent = '扫描中...';
+    status.textContent = '正在搜索本地网络中的 ONVIF 设备...';
+    resultsDiv.style.display = 'none';
+
+    try {
+        const resp = await fetch('/api/cameras/scan', { method: 'POST' });
+        const data = await resp.json();
+        btn.disabled = false;
+        btn.textContent = '扫描网络摄像头';
+
+        if (!data.ok) {
+            if (data.error && data.error.includes('not installed')) {
+                status.innerHTML = '需要安装 ONVIF 支持库: <code>pip install onvif-zeep</code>';
+            } else {
+                status.textContent = data.error || '扫描失败';
+            }
+            return;
+        }
+
+        scanResults = data.results || [];
+        const count = scanResults.length;
+
+        if (count === 0) {
+            status.textContent = '未发现 ONVIF 设备。请确认 NVR/摄像头与服务器在同一局域网，且已开启 ONVIF。';
+            return;
+        }
+
+        status.textContent = '';
+        document.getElementById('scanCount').textContent = count;
+        resultsDiv.style.display = 'block';
+        renderDeviceCards();
+
+    } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '扫描网络摄像头';
+        status.textContent = '网络错误: ' + err.message;
+    }
+}
+
+function renderDeviceCards() {
+    const list = document.getElementById('deviceList');
+    list.innerHTML = scanResults.map((d, idx) => renderDeviceCard(d, idx)).join('');
+}
+
+function renderDeviceCard(d, idx) {
+    const mfr = d.manufacturer || 'Unknown';
+    const model = d.model || '';
+    const isNvr = d.is_nvr;
+    const hasCred = d.found_cred;
+    const ip = d.ip;
+    const channels = d.channels || [];
+    const suggestedCh = d.suggested_channels || 1;
+
+    // Store nvr config defaults
+    if (!nvrConfigs[ip]) {
+        nvrConfigs[ip] = { channels: suggestedCh, streamType: 'main' };
+    }
+    const cfg = nvrConfigs[ip];
+
+    let html = `<div class="device-card" id="dev-${idx}">
+        <div class="device-header">
+            <div class="info">
+                <span class="device-ip">${esc(ip)}</span>`;
+
+    if (hasCred && isNvr) {
+        html += `<span class="badge-nvr">NVR</span>`;
+    } else if (hasCred && !isNvr) {
+        html += `<span class="badge-ipc">IPC</span>`;
+    }
+
+    html += `<div class="device-meta">${esc(mfr)}${model ? ' — ' + esc(model) : ''}</div>`;
+    html += `</div></div>`;
+
+    // Credential input for failed-login devices
+    if (!hasCred) {
+        html += `<div class="device-creds">
+            <input type="text" id="cred-user-${idx}" placeholder="用户名" value="admin">
+            <input type="password" id="cred-pass-${idx}" placeholder="密码">
+            <button class="btn-try-login" onclick="tryLogin(${idx})">尝试登录</button>
+        </div>
+        <div id="cred-status-${idx}" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>`;
+        // Generate URLs with custom credentials
+        html += renderNvrConfig(idx, ip, cfg, suggestedCh, true);
+    } else {
+        // Show scan-discovered channels or generate URLs
+        html += renderNvrConfig(idx, ip, cfg, suggestedCh, false);
+    }
+
+    html += `</div>`;
+    return html;
+}
+
+function renderNvrConfig(idx, ip, cfg, suggestedCh, isNvr) {
+    let html = '';
+
+    // Channel config for NVR or multi-channel
+    html += `<div class="nvr-config">
+        <label>通道数:</label>
+        <input type="number" min="1" max="64" value="${cfg.channels}"
+               onchange="updateNvrCfg('${ip}','channels',this.value)">
+        <label>码流:</label>
+        <select onchange="updateNvrCfg('${ip}','streamType',this.value)">
+            <option value="main" ${cfg.streamType==='main'?'selected':''}>主码流</option>
+            <option value="sub" ${cfg.streamType==='sub'?'selected':''}>子码流</option>
+            <option value="both" ${cfg.streamType==='both'?'selected':''}>主+子</option>
+        </select>
+    </div>`;
+
+    // URL preview area
+    html += `<div class="url-list" id="urlList-${idx}"></div>`;
+
+    // Actions
+    html += `<div class="device-actions">
+        <button class="btn-action secondary" onclick="previewUrls(${idx}, '${ip}')">预览 URL</button>
+        <button class="btn-action secondary" onclick="testFirstUrl(${idx}, '${ip}')">测试连接</button>
+        <button class="btn-action primary" onclick="addAllChannels(${idx}, '${ip}')">批量添加 (${cfg.channels}路)</button>
+    </div>
+    <div id="testStatus-${idx}" style="font-size:12px;margin-top:6px;min-height:18px;"></div>`;
+
+    return html;
+}
+
+function updateNvrCfg(ip, key, value) {
+    if (!nvrConfigs[ip]) nvrConfigs[ip] = { channels: 4, streamType: 'main' };
+    if (key === 'channels') nvrConfigs[ip].channels = Math.max(1, Math.min(64, parseInt(value) || 1));
+    else nvrConfigs[ip][key] = value;
+}
+
+// ============================================================
+// URL generation & preview
+// ============================================================
+async function generateUrls(device, channels, streamType) {
+    const user = device.user || 'admin';
+    const password = device.password || '';
+    const ip = device.ip;
+    const payload = { ip, user, password, port: 554, channels, stream_type: streamType };
+
+    try {
+        const resp = await fetch('/api/cameras/generate_urls', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (data.ok) return data.urls;
+        showToast('生成 URL 失败: ' + (data.error || '未知错误'), 'error');
+        return [];
+    } catch (err) {
+        showToast('请求失败: ' + err.message, 'error');
+        return [];
+    }
+}
+
+async function previewUrls(idx, ip) {
+    const device = scanResults[idx];
+    if (!device) return;
+    const cfg = nvrConfigs[ip] || { channels: 4, streamType: 'main' };
+    const urlList = document.getElementById('urlList-' + idx);
+
+    // If already open, just close
+    if (urlList.classList.contains('open')) {
+        urlList.classList.remove('open');
+        return;
+    }
+
+    urlList.innerHTML = '<div style="color:var(--muted);font-size:12px;">生成中...</div>';
+    urlList.classList.add('open');
+
+    const urls = await generateUrls(device, cfg.channels, cfg.streamType);
+    if (urls.length === 0) {
+        urlList.innerHTML = '<div style="color:var(--red);font-size:12px;">生成失败</div>';
+        return;
+    }
+
+    urlList.innerHTML = urls.map((u, ui) => `
+        <div class="url-item">
+            <span class="ch-label">CH${u.channel} ${u.stream}</span>
+            <span class="ch-url">${esc(u.url)}</span>
+            <span class="ch-test" onclick="testSingleUrl('${esc(u.url).replace(/'/g,"\\'")}', this)" title="测试此路">测试</span>
+        </div>
+    `).join('');
+}
+
+async function testConnection(source, statusEl) {
+    if (!statusEl) return;
+    statusEl.innerHTML = '<span class="status-dot testing"></span> 测试中...';
+
+    try {
+        const t0 = Date.now();
+        const resp = await fetch('/api/cameras/test', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source: source })
+        });
+        const data = await resp.json();
+        const elapsed = Date.now() - t0;
+
+        if (data.connected) {
+            statusEl.innerHTML = `<span class="status-dot connected"></span> 连接成功 — ${data.resolution || '?'} — ${data.latency_ms || elapsed}ms`;
+        } else {
+            statusEl.innerHTML = `<span class="status-dot failed"></span> 连接失败: ${data.error || '超时'}`;
+        }
+    } catch (err) {
+        statusEl.innerHTML = `<span class="status-dot failed"></span> 测试异常: ${err.message}`;
+    }
+}
+
+function testSingleUrl(url, el) {
+    const parent = el.parentElement;
+    const statusSpan = document.createElement('span');
+    statusSpan.style.fontSize = '10px';
+    statusSpan.style.marginLeft = '6px';
+    parent.appendChild(statusSpan);
+    el.remove();
+    testConnection(url, statusSpan);
+}
+
+async function testFirstUrl(idx, ip) {
+    const device = scanResults[idx];
+    if (!device) return;
+    const cfg = nvrConfigs[ip] || { channels: 4, streamType: 'main' };
+    const statusEl = document.getElementById('testStatus-' + idx);
+
+    const urls = await generateUrls(device, Math.min(cfg.channels, 1), cfg.streamType);
+    if (urls.length === 0) {
+        statusEl.innerHTML = '<span class="status-dot failed"></span> 无法生成测试 URL';
+        return;
+    }
+    await testConnection(urls[0].url, statusEl);
+}
+
+// ============================================================
+// Batch add
+// ============================================================
+async function addAllChannels(idx, ip) {
+    if (addingInProgress) return;
+    const device = scanResults[idx];
+    if (!device) return;
+    const cfg = nvrConfigs[ip] || { channels: 4, streamType: 'main' };
+
+    if (!confirm(`确定添加 ${cfg.channels} 个通道吗？重启服务后方可生效。`)) return;
+    addingInProgress = true;
+
+    const urls = await generateUrls(device, cfg.channels, cfg.streamType);
+    if (urls.length === 0) {
+        showToast('无法生成 URL', 'error');
+        addingInProgress = false;
+        return;
+    }
+
+    const cameras = urls.map(u => ({
+        source: u.url,
+        name: `NVR-${ip}-CH${u.channel}${u.stream === 'sub' ? '-sub' : ''}`
+    }));
+
+    try {
+        const resp = await fetch('/api/cameras', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cameras: cameras })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            showToast(data.message, 'success');
+            loadList();
+            // Mark card as added
+            const card = document.getElementById('dev-' + idx);
+            if (card) {
+                const header = card.querySelector('.device-header');
+                if (header) {
+                    const mark = document.createElement('span');
+                    mark.className = 'added-mark';
+                    mark.textContent = '已添加';
+                    header.appendChild(mark);
+                }
+            }
+        } else {
+            showToast(data.error || '添加失败', 'error');
+        }
+    } catch (err) {
+        showToast('请求失败: ' + err.message, 'error');
+    }
+    addingInProgress = false;
+}
+
+// ============================================================
+// Credential retry
+// ============================================================
+async function tryLogin(idx) {
+    const user = document.getElementById('cred-user-' + idx).value.trim();
+    const pass = document.getElementById('cred-pass-' + idx).value.trim();
+    const statusEl = document.getElementById('cred-status-' + idx);
+    if (!user || !pass) {
+        statusEl.textContent = '请输入用户名和密码';
+        return;
+    }
+    const device = scanResults[idx];
+    if (!device) return;
+
+    statusEl.textContent = '测试中...';
+    // Try via generate_urls — if credentials work, URL should be valid
+    const testUrl = `rtsp://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${device.ip}:554/Streaming/Channels/101`;
+    await testConnection(testUrl, statusEl);
+}
+
+function showToast(text, type) {
+    const t = document.getElementById('toast');
+    t.textContent = text; t.className = 'toast '+type; t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+}
+
+loadList();
+</script>
+</body>
+</html>
