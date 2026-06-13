@@ -31,11 +31,11 @@ MODEL_FALL_DETECT = 'fall_detect.pt'
 # ============================================================
 # Fall Detection Thresholds
 # ============================================================
-YELLOW_THRESHOLD = 0.65    # possible fall → yellow warning
-RED_THRESHOLD = 0.85       # confirmed fall → red alert
-FALL_CONSECUTIVE_FRAMES = 3     # consecutive frames to confirm red alert
-YELLOW_HOLD_FRAMES = 10         # hold yellow warning for N frames
-FALL_COOLDOWN_SECONDS = 10      # minimum gap between red alerts
+YELLOW_THRESHOLD = 0.55    # possible fall → yellow warning
+RED_THRESHOLD = 0.75       # confirmed fall → red alert
+FALL_CONSECUTIVE_FRAMES = 2     # consecutive frames to confirm red alert
+YELLOW_HOLD_FRAMES = 5          # hold yellow warning for N frames
+FALL_COOLDOWN_SECONDS = 5       # minimum gap between red alerts
 
 # ============================================================
 # Detection Timing
