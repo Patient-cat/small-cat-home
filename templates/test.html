@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频测试 - 跌倒监测系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #0f1923; color: #e0e0e0;
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+        }
+        header {
+            width: 100%; padding: 16px 20px; background: #1a2d3d;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+            display: flex; align-items: center; justify-content: center; gap: 20px;
+        }
+        header h1 { font-size: 22px; color: #4fc3f7; font-weight: 400; }
+        .nav-link {
+            color: #4fc3f7; text-decoration: none; font-size: 14px;
+            border: 1px solid #4fc3f7; padding: 6px 15px; border-radius: 16px;
+        }
+        .nav-link:hover { background: #4fc3f7; color: #0f1923; }
+        .card {
+            margin-top: 40px; width: 480px; background: #1a2d3d;
+            border: 1px solid #2a4a5c; border-radius: 12px; padding: 30px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
+        .card h2 { font-size: 20px; color: #4fc3f7; margin-bottom: 20px; font-weight: 400; text-align: center; }
+        .form-group { margin-bottom: 18px; }
+        .form-group input[type="file"] {
+            width: 100%; padding: 12px; border: 1px dashed #2a4a5c;
+            border-radius: 8px; background: #0f1923; color: #a0c4d0; font-size: 14px; cursor: pointer;
+        }
+        .hint { font-size: 12px; color: #5a7a8a; margin-top: 6px; }
+        .btn-submit {
+            width: 100%; padding: 14px; font-size: 16px; background: #4fc3f7;
+            color: #0f1923; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+        }
+        .btn-submit:hover { background: #81d4fa; }
+        .btn-reset {
+            width: 100%; padding: 10px; font-size: 14px; background: transparent;
+            border: 1px solid #f44336; color: #f44336;
+            border-radius: 8px; cursor: pointer; margin-top: 10px;
+        }
+        .message {
+            margin-top: 14px; padding: 12px 16px; border-radius: 8px;
+            font-size: 14px; display: none; text-align: center;
+        }
+        .message.success { display: block; background: #1b3a2a; border: 1px solid #2e7d32; color: #81c784; }
+        .message.error { display: block; background: #3a1b1b; border: 1px solid #c62828; color: #ef9a9a; }
+        .test-fullscreen { position:fixed; inset:0; z-index:9990; border-radius:0 !important; border:none !important; margin:0 !important; }
+        /* Alert overlays */
+        .alert-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(255, 0, 0, 0.75);
+            opacity: 0; pointer-events: none; transition: opacity 0.25s;
+        }
+        .alert-overlay.active { opacity: 1; pointer-events: auto; }
+        .alert-overlay.warn { background: rgba(255, 165, 0, 0.6); z-index: 9998; }
+        .alert-text { font-size: 32px; font-weight: bold; color: #fff; text-shadow: 0 0 20px rgba(0,0,0,0.8); margin-bottom: 10px; }
+        .alert-detail { font-size: 16px; color: #ffe0e0; margin-bottom: 20px; }
+        .btn-dismiss {
+            padding: 12px 36px; font-size: 16px; background: #fff; color: #c62828;
+            border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+        }
+        .btn-dismiss:hover { background: #ddd; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>视频测试 - 跌倒监测系统</h1>
+    <a href="/" class="nav-link">← 返回主页</a>
+</header>
+<div class="card">
+    <h2>上传测试视频</h2>
+    <form id="uploadForm">
+        <div class="form-group">
+            <input type="file" id="videoFile" accept="video/mp4,video/avi,video/mov,video/webm" required>
+            <div class="hint">支持 MP4 / AVI / MOV / WebM，上传后自动替换摄像头画面进行跌倒检测测试</div>
+        </div>
+        <button type="button" class="btn-submit" id="btnSubmit" onclick="doUpload()">上传并开始测试</button>
+    </form>
+    <button class="btn-reset" onclick="resetTest()">清除测试视频</button>
+    <div id="message" class="message"></div>
+
+    <div id="testVideoBox" style="margin-top:20px; border:2px solid #2a4a5c; border-radius:8px; overflow:hidden; background:#000; position:relative;">
+        <div style="position:absolute;top:8px;left:12px;z-index:10;display:flex;gap:6px;">
+            <button id="btnPause" onclick="togglePause()" style="background:rgba(0,0,0,0.5);color:#fff;border:none;font-size:16px;padding:4px 10px;border-radius:6px;cursor:pointer;" title="暂停/播放">⏸</button>
+            <span id="testStatus" style="font-size:12px;background:rgba(0,0,0,0.5);color:#4caf50;padding:4px 10px;border-radius:6px;">播放中</span>
+        </div>
+        <button style="position:absolute;top:8px;right:12px;z-index:10;background:rgba(0,0,0,0.5);color:#fff;border:none;font-size:18px;padding:4px 8px;border-radius:6px;cursor:pointer;" onclick="toggleTestFS()" title="全屏">⛶</button>
+        <img id="testPreview" src="" style="display:none; width:100%;">
+    </div>
+</div>
+
+<!-- Fall alert overlay -->
+<div id="fallOverlay" class="alert-overlay">
+    <div class="alert-text" id="fallText">检测到跌倒！</div>
+    <div class="alert-detail" id="fallDetail"></div>
+    <button class="btn-dismiss" onclick="dismissFall()">按 ESC 关闭</button>
+</div>
+<!-- Warning overlay -->
+<div id="warnOverlay" class="alert-overlay warn">
+    <div class="alert-text">姿态不稳</div>
+    <div class="alert-detail" id="warnDetail"></div>
+</div>
+
+<script>
+// ============================================================
+// Audio setup (same as index.html)
+// ============================================================
+let audioCtx = null, audioReady = false;
+function initAudio() {
+    if (audioReady) return;
+    try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioReady = true;
+    } catch (e) {}
+}
+
+// Fall alarm — sawtooth wave pattern
+let _alarmInterval = null;
+function playAlarm() {
+    if (_alarmInterval) clearInterval(_alarmInterval);
+    _alarmInterval = setInterval(function () {
+        if (audioCtx && audioReady) {
+            const now = audioCtx.currentTime;
+            const notes = [780, 980, 580, 780];
+            for (let r = 0; r < 3; r++) {
+                let t0 = now + r * 0.8;
+                notes.forEach(f => {
+                    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+                    o.connect(g); g.connect(audioCtx.destination);
+                    o.type = 'sawtooth';
+                    o.frequency.setValueAtTime(f, t0);
+                    g.gain.setValueAtTime(0.2, t0);
+                    g.gain.exponentialRampToValueAtTime(0.01, t0 + 0.12);
+                    o.start(t0); o.stop(t0 + 0.12);
+                    t0 += 0.18;
+                });
+            }
+        }
+    }, 2500);
+}
+function stopAlarm() {
+    if (_alarmInterval) { clearInterval(_alarmInterval); _alarmInterval = null; }
+}
+
+// Warning beep
+function playBeep() {
+    if (audioCtx && audioReady) {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine';
+        o.frequency.setValueAtTime(660, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        o.start(); o.stop(audioCtx.currentTime + 0.3);
+    }
+}
+
+// ============================================================
+// Alert handlers
+// ============================================================
+let _dismissedAt = 0;
+function showFallOverlay(data) {
+    if (Date.now() - _dismissedAt < 5000) return; // ignore for 5s after dismiss
+    initAudio();
+    const overlay = document.getElementById('fallOverlay');
+    const text = document.getElementById('fallText');
+    const detail = document.getElementById('fallDetail');
+    const name = data.name || '陌生人';
+    text.textContent = '检测到跌倒！ ' + name;
+    detail.textContent = '老人: ' + name + ' | 置信度: ' + (data.confidence * 100).toFixed(0) + '% | ' + (data.timestamp || '');
+    overlay.classList.add('active');
+    playAlarm();
+}
+
+function dismissFall() {
+    document.getElementById('fallOverlay').classList.remove('active');
+    stopAlarm();
+    _dismissedAt = Date.now();
+}
+
+function showWarning(data) {
+    initAudio();
+    const overlay = document.getElementById('warnOverlay');
+    const detail = document.getElementById('warnDetail');
+    detail.textContent = 'P_FALL: ' + (data.p_fall || 0).toFixed(2);
+    overlay.classList.add('active');
+    playBeep();
+    setTimeout(function () { overlay.classList.remove('active'); }, 2000);
+}
+
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' || e.key === 'Enter') dismissFall();
+});
+
+// ============================================================
+// SSE — listen for fall alerts
+// ============================================================
+function connectSSE() {
+    var es = new EventSource('/events');
+    es.onmessage = function (e) {
+        if (!e.data) return;
+        try {
+            var data = JSON.parse(e.data);
+            if (data.type === 'fall' || data.level === 2) showFallOverlay(data);
+            else if (data.type === 'warning' || data.level === 1) showWarning(data);
+        } catch (err) {}
+    };
+    es.onerror = function () { es.close(); setTimeout(connectSSE, 3000); };
+}
+connectSSE();
+
+// ============================================================
+// Upload / test controls
+// ============================================================
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    doUpload();
+});
+document.getElementById('btnSubmit').addEventListener('click', function(e) {
+    e.preventDefault();
+    doUpload();
+});
+
+async function doUpload() {
+    const fileInput = document.getElementById('videoFile');
+    if (!fileInput.files.length) {
+        alert('请先选择视频文件');
+        return;
+    }
+    const btn = document.getElementById('btnSubmit');
+    const msg = document.getElementById('message');
+    btn.disabled = true;
+    btn.textContent = '上传中...';
+    msg.className = 'message';
+    msg.style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('video', fileInput.files[0]);
+    try {
+        const resp = await fetch('/test', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.ok) {
+            msg.className = 'message success';
+            msg.innerHTML = '视频已加载，下方画面查看检测效果';
+            // Show and start the test video stream
+            var img = document.getElementById('testPreview');
+            img.style.display = 'block';
+            img.src = '/test_feed?t=' + Date.now();
+        } else {
+            msg.className = 'message error'; msg.textContent = data.error;
+        }
+        msg.style.display = 'block';
+    } catch (err) {
+        msg.className = 'message error'; msg.textContent = '上传失败: ' + err.message;
+        msg.style.display = 'block';
+    }
+    btn.disabled = false;
+    btn.textContent = '上传并开始测试';
+}
+
+function toggleTestFS() {
+    document.getElementById('testVideoBox').classList.toggle('test-fullscreen');
+}
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') document.getElementById('testVideoBox').classList.remove('test-fullscreen');
+});
+
+// ============================================================
+// Pause / Play / State
+// ============================================================
+let testPaused = false;
+let testEOF = false;
+
+async function togglePause() {
+    try {
+        const resp = await fetch('/test/pause', { method: 'POST' });
+        const d = await resp.json();
+        testPaused = d.paused;
+        updateTestControls();
+    } catch (e) {}
+}
+
+async function checkTestState() {
+    try {
+        const resp = await fetch('/test/state');
+        const d = await resp.json();
+        testPaused = d.paused;
+        testEOF = d.eof;
+        updateTestControls();
+    } catch (e) {}
+}
+
+function updateTestControls() {
+    const btn = document.getElementById('btnPause');
+    const status = document.getElementById('testStatus');
+    if (testEOF) {
+        btn.textContent = '⟳';
+        btn.title = '重新播放';
+        btn.onclick = reloadVideo;
+        status.textContent = '播放完毕';
+        status.style.color = '#ff9800';
+    } else if (testPaused) {
+        btn.textContent = '▶';
+        btn.title = '继续播放';
+        btn.onclick = togglePause;
+        status.textContent = '已暂停';
+        status.style.color = '#ff9800';
+    } else {
+        btn.textContent = '⏸';
+        btn.title = '暂停';
+        btn.onclick = togglePause;
+        status.textContent = '播放中';
+        status.style.color = '#4caf50';
+    }
+}
+
+function reloadVideo() {
+    const img = document.getElementById('testPreview');
+    img.src = '';
+    fetch('/test/pause', { method: 'POST' }).then(r => r.json()).then(d => {
+        if (d.ok && d.paused) fetch('/test/pause', { method: 'POST' }); // unpause if paused
+    });
+    setTimeout(() => { img.src = '/test_feed?t=' + Date.now(); }, 200);
+    testEOF = false;
+    testPaused = false;
+    updateTestControls();
+}
+
+setInterval(checkTestState, 1000);
+
+async function resetTest() {
+    const msg = document.getElementById('message');
+    testEOF = false;
+    testPaused = false;
+    updateTestControls();
+    // Stop video stream to free server thread
+    var img = document.getElementById('testPreview');
+    img.src = '';
+    img.style.display = 'none';
+    try {
+        const resp = await fetch('/test/reset');
+        const data = await resp.json();
+        msg.className = data.ok ? 'message success' : 'message error';
+        msg.textContent = data.message || data.error;
+        msg.style.display = 'block';
+    } catch (err) {
+        msg.className = 'message error'; msg.textContent = '重置失败: ' + err.message;
+        msg.style.display = 'block';
+    }
+}
+</script>
+</body>
+</html>

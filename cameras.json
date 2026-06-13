@@ -1,0 +1,38 @@
+{
+  "cameras": [
+    {"id": 0, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/101", "name": "NVR-CH1"},
+    {"id": 1, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/202", "name": "NVR-CH2"},
+    {"id": 2, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/302", "name": "NVR-CH3"},
+    {"id": 3, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/402", "name": "NVR-CH4"},
+    {"id": 4, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/502", "name": "NVR-CH5"},
+    {"id": 5, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/602", "name": "NVR-CH6"},
+    {"id": 6, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/702", "name": "NVR-CH7"},
+    {"id": 7, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/802", "name": "NVR-CH8"},
+    {"id": 8, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/902", "name": "NVR-CH9"},
+    {"id": 9, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1002", "name": "NVR-CH10"},
+    {"id": 10, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1102", "name": "NVR-CH11"},
+    {"id": 11, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1202", "name": "NVR-CH12"},
+    {"id": 12, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1302", "name": "NVR-CH13"},
+    {"id": 13, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1402", "name": "NVR-CH14"},
+    {"id": 14, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1502", "name": "NVR-CH15"},
+    {"id": 15, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1602", "name": "NVR-CH16"},
+    {"id": 16, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1702", "name": "NVR-CH17"},
+    {"id": 17, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1802", "name": "NVR-CH18"},
+    {"id": 18, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/1902", "name": "NVR-CH19"},
+    {"id": 19, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/2002", "name": "NVR-CH20"},
+    {"id": 20, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/2102", "name": "NVR-CH21"},
+    {"id": 21, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/2202", "name": "NVR-CH22"},
+    {"id": 22, "source": "rtsp://user:REDACTED@10.41.4.199:554/Streaming/Channels/2302", "name": "NVR-CH23"},
+    {"id": 23, "source": 0, "name": "USB摄像头-0"},
+    {"id": 24, "source": 1, "name": "USB摄像头-1"}
+  ],
+  "names": {
+    "0": "NVR-CH1", "1": "NVR-CH2", "2": "NVR-CH3", "3": "NVR-CH4",
+    "4": "NVR-CH5", "5": "NVR-CH6", "6": "NVR-CH7", "7": "NVR-CH8",
+    "8": "NVR-CH9", "9": "NVR-CH10", "10": "NVR-CH11", "11": "NVR-CH12",
+    "12": "NVR-CH13", "13": "NVR-CH14", "14": "NVR-CH15", "15": "NVR-CH16",
+    "16": "NVR-CH17", "17": "NVR-CH18", "18": "NVR-CH19", "19": "NVR-CH20",
+    "20": "NVR-CH21", "21": "NVR-CH22", "22": "NVR-CH23",
+    "23": "USB摄像头-0", "24": "USB摄像头-1"
+  }
+}
