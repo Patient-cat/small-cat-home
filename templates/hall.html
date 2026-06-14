@@ -78,19 +78,9 @@ body::before {
 .header-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
-.header-logo .dot {
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 10px var(--accent);
-  animation: breathe 2s ease-in-out infinite;
-}
-@keyframes breathe {
-  0%,100% { opacity: 1; box-shadow: 0 0 8px var(--accent); }
-  50%     { opacity: 0.5; box-shadow: 0 0 16px var(--accent); }
-}
+.header-logo img { height: 34px; }
 .header-logo h1 {
   font-size: 17px;
   font-weight: 600;
@@ -556,8 +546,8 @@ body::before {
 <header class="header">
   <div class="header-left">
     <div class="header-logo">
-      <span class="dot"></span>
-      <h1>SafeSight 监控大厅</h1>
+      <img src="/static/logo.png" alt="SafeSight" style="height:34px;">
+      <h1>监控大厅</h1>
     </div>
     <span class="header-info" id="statusInfo">加载中...</span>
   </div>

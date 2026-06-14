@@ -69,27 +69,11 @@ body::before {
 .header-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   text-decoration: none;
   color: var(--text);
 }
-.header-logo .icon {
-  width: 34px; height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), #0288d1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: bold;
-  color: #fff;
-}
-.header-logo .name {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-bright);
-  letter-spacing: -0.3px;
-}
+.header-logo img { height: 38px; }
 .header-logo .ver {
   font-size: 11px;
   color: var(--muted);
@@ -494,8 +478,7 @@ body::before {
      ============================================================ -->
 <header class="header">
   <a href="/" class="header-logo">
-    <div class="icon">◉</div>
-    <span class="name">SafeSight</span>
+    <img src="/static/logo.png" alt="SafeSight" style="height:40px;">
     <span class="ver">v2.0</span>
   </a>
   <nav class="header-nav">
