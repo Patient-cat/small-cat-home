@@ -20,13 +20,7 @@ _load_dotenv()
 # ============================================================
 # Paths
 # ============================================================
-def _get_base_dir():
-    import sys
-    if getattr(sys, 'frozen', False):
-        return sys._MEIPASS
-    return os.path.dirname(os.path.abspath(__file__))
-
-BASE_DIR = _get_base_dir()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CAMERA_CONFIG_FILE = os.path.join(BASE_DIR, 'cameras.json')
 DB_PATH = os.path.join(BASE_DIR, 'faces.db')
 STATIC_FALLS_DIR = os.path.join(BASE_DIR, 'static', 'falls')
@@ -104,8 +98,7 @@ def get_endpoint():
 # ============================================================
 # Server
 # ============================================================
-DESKTOP_MODE = os.environ.get('SAFESIGHT_DESKTOP') == '1'
-SERVER_HOST = '127.0.0.1' if DESKTOP_MODE else '0.0.0.0'
+SERVER_HOST = '0.0.0.0'
 SERVER_PORT = 5001
 DEBUG = False
 
