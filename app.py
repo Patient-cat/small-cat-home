@@ -72,6 +72,7 @@ app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins='*', async_mode='threading')
+DESKTOP_MODE = cfg.DESKTOP_MODE
 
 os.makedirs(cfg.STATIC_FALLS_DIR, exist_ok=True)
 os.makedirs(cfg.STATIC_UPLOADS_DIR, exist_ok=True)
@@ -260,6 +261,8 @@ def init_db():
     cols = [c[1] for c in conn.execute('PRAGMA table_info(events)').fetchall()]
     if 'permanent' not in cols:
         conn.execute('ALTER TABLE events ADD COLUMN permanent INTEGER DEFAULT 0')
+    # Key-value settings table (setup wizard, etc.)
+    conn.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
     # Users table for auth
     conn.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, '
                  'username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, '
@@ -1140,11 +1143,20 @@ def admin_required(f):
     return decorated
 
 
+def _setup_complete():
+    conn = get_db()
+    row = conn.execute("SELECT value FROM settings WHERE key='setup_complete'").fetchone()
+    conn.close()
+    return row and row['value'] == 'true'
+
+
 @app.route('/login')
 def login_page():
     """Login page."""
     from flask import session, redirect, url_for
     if session.get('logged_in'):
+        if not _setup_complete():
+            return redirect(url_for('wizard_page'))
         return redirect(url_for('hall'))
     return render_template('login.html')
 
@@ -1172,7 +1184,8 @@ def api_login():
     session['role'] = row['role']
     session['user_id'] = row['id']
     log.info('User "%s" (%s) logged in', username, row['role'])
-    return jsonify({'ok': True, 'redirect': '/hall'})
+    redirect_to = '/wizard' if not _setup_complete() else '/hall'
+    return jsonify({'ok': True, 'redirect': redirect_to})
 
 
 @app.route('/api/logout', methods=['POST'])
@@ -1200,6 +1213,56 @@ def register_user_page():
     if session.get('logged_in'):
         return redirect(url_for('hall'))
     return render_template('register_user.html')
+
+
+# ============================================================
+# Setup Wizard (first-run onboarding)
+# ============================================================
+@app.route('/wizard')
+@login_required
+def wizard_page():
+    """First-run setup wizard. Redirect to /hall if already set up."""
+    if _setup_complete():
+        from flask import redirect, url_for
+        return redirect(url_for('hall'))
+    return render_template('wizard.html')
+
+
+@app.route('/api/setup/admin', methods=['POST'])
+@login_required
+def api_setup_admin():
+    """Change the default admin password during setup."""
+    data = request.get_json(force=True) or {}
+    new_pass = (data.get('password') or '').strip()
+    if len(new_pass) < 6:
+        return jsonify({'ok': False, 'error': '密码长度不能少于6位'}), 400
+    from flask import session
+    if session.get('role') != 'admin':
+        return jsonify({'ok': False, 'error': '需要管理员权限'}), 403
+    conn = get_db()
+    admin = conn.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()
+    if admin:
+        conn.execute("UPDATE users SET password_hash=? WHERE id=?",
+                     (generate_password_hash(new_pass), admin['id']))
+        conn.commit()
+    conn.close()
+    log.info('Admin password updated via setup wizard')
+    return jsonify({'ok': True})
+
+
+@app.route('/api/setup/complete', methods=['POST'])
+@login_required
+def api_setup_complete():
+    """Mark setup as complete and enable all cameras."""
+    conn = get_db()
+    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                 ('setup_complete', 'true'))
+    conn.commit()
+    conn.close()
+    for cid in list(camera_enabled.keys()):
+        camera_enabled[cid] = True
+    log.info('Setup marked complete, %d cameras enabled', len(camera_enabled))
+    return jsonify({'ok': True})
 
 
 @app.route('/api/register', methods=['POST'])
@@ -2262,16 +2325,14 @@ def test_feed():
 # ============================================================
 # Main
 # ============================================================
-if __name__ == '__main__':
-    
+def initialize_camera_pipelines():
+    """Set up per-camera state, start detection/cleanup/USB-scan threads."""
     log.info("=" * 40)
     log.info("SafeSight v2.0 starting on http://localhost:%d", cfg.SERVER_PORT)
     for c in CAMERAS:
         name = camera_names.get(str(c['id']), f'摄像头{c["id"]+1}')
         log.info("  /video_feed/%d → %s (source=%s)", c['id'], name, c['source'])
-    
 
-    # Init per-camera state
     for c in CAMERAS:
         cid = c['id']
         frame_queues[cid] = queue.Queue(maxsize=2)
@@ -2281,7 +2342,6 @@ if __name__ == '__main__':
         person_count_list[cid] = 0
         last_p_fall_list[cid] = 0
 
-    # Start detection threads per camera
     for c in CAMERAS:
         t = threading.Thread(target=detection_worker, args=(c['id'],), daemon=True,
                              name=f'detection-{c["id"]}')
@@ -2292,6 +2352,8 @@ if __name__ == '__main__':
     usb_scan_thread.start()
     log.info("%d camera(s) + cleanup threads started", len(CAMERAS))
 
+
+def _setup_signal_handlers():
     import signal as _signal
     def _shutdown(sig, frame):
         log.info('Shutting down...')
@@ -2310,4 +2372,9 @@ if __name__ == '__main__':
     _signal.signal(_signal.SIGINT, _shutdown)
     _signal.signal(_signal.SIGTERM, _shutdown)
 
-    socketio.run(app, host='0.0.0.0', port=5001, debug=False, allow_unsafe_werkzeug=True)
+
+if __name__ == '__main__':
+    initialize_camera_pipelines()
+    _setup_signal_handlers()
+    socketio.run(app, host=cfg.SERVER_HOST, port=cfg.SERVER_PORT,
+                 debug=False, allow_unsafe_werkzeug=True)
