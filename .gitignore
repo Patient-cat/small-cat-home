@@ -42,9 +42,6 @@ dataset/
 venv/
 .venv/
 
-# Camera config (contains real credentials)
-cameras.json
-
 # OS
 .DS_Store
 Thumbs.db
