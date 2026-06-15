@@ -482,6 +482,7 @@ body::before {
     <span class="ver">v2.0</span>
   </a>
   <nav class="header-nav">
+    <button id="btnAI" onclick="toggleAI()" style="font-family:var(--font);font-size:13px;color:#00d4aa;background:transparent;border:1px solid rgba(0,212,170,0.4);padding:6px 14px;border-radius:8px;cursor:pointer;margin-right:6px;">AI分析</button>
     <a href="/hall">监控大厅</a>
     <a href="/register">人脸注册</a>
     <a href="/history">跌倒历史</a>
@@ -737,6 +738,33 @@ function refreshReport() {
   }).catch(function () {});
 }
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// ============================================================
+// AI Toggle
+// ============================================================
+function toggleAI() {
+  fetch('/api/toggle_ai', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
+    updateAIButton(d.ai_toggle);
+  });
+}
+function updateAIButton(on) {
+  var btn = document.getElementById('btnAI');
+  if (!btn) return;
+  if (on) {
+    btn.textContent = '✓ AI已开启';
+    btn.style.color = '#00d4aa';
+    btn.style.borderColor = 'rgba(0,212,170,0.6)';
+    btn.style.background = 'rgba(0,212,170,0.08)';
+  } else {
+    btn.textContent = 'AI分析';
+    btn.style.color = '#5a7a8a';
+    btn.style.borderColor = 'rgba(90,122,138,0.3)';
+    btn.style.background = 'transparent';
+  }
+}
+fetch('/api/health').then(function (r) { return r.json(); }).then(function (h) {
+  if (typeof h.ai_toggle !== 'undefined') updateAIButton(h.ai_toggle);
+}).catch(function () {});
 
 // Initial load
 refreshStats(); refreshFaces(); refreshEvents(); refreshReport();

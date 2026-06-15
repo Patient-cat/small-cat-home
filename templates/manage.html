@@ -113,6 +113,12 @@
         .btn-submit-modal:hover { background: #66bb6a; }
         .btn-cancel-modal { background: transparent; border: 1px solid #555 !important; color: #888; flex: 0.5; }
         .btn-cancel-modal:hover { background: #555; color: #fff; }
+        .cam-select {
+            width: 100%; padding: 8px 12px; font-size: 14px; font-family: inherit;
+            background: #0f1923; color: #e0e0e0; border: 1px solid #2a4a5c;
+            border-radius: 8px; margin-bottom: 10px; outline: none;
+        }
+        .cam-select:focus { border-color: #4fc3f7; }
     </style>
 </head>
 <body>
@@ -144,6 +150,9 @@
             <div class="step" id="modStep3">3. 稍右转</div>
         </div>
         <div class="modal-instruction" id="modInstruction">请正对摄像头</div>
+        <select id="modCamSelect" class="cam-select" onchange="onCamChange()">
+            <option value="">加载摄像头列表...</option>
+        </select>
         <img id="modPreview" class="modal-preview" src="" alt="Live">
         <div class="modal-captured-list" id="modCapturedList"></div>
         <div class="modal-actions" id="modActionsCapture">
@@ -163,6 +172,33 @@ const INSTRUCTIONS = ['', '请正对摄像头', '头部稍向左转', '头部稍
 let _modStep = 1;
 let _modBlobs = [null, null, null, null];
 let _modPid = null;
+let _cameras = [];
+let _selectedCamId = 0;
+
+async function loadCameras() {
+    try {
+        const resp = await fetch('/api/cameras');
+        _cameras = await resp.json();
+        const sel = document.getElementById('modCamSelect');
+        sel.innerHTML = _cameras.map(c =>
+            `<option value="${c.id}">${esc(c.name)} ${c.fps > 0 ? '●' : '○'}</option>`
+        ).join('');
+        if (_cameras.length > 0) _selectedCamId = _cameras[0].id;
+    } catch (e) {}
+}
+
+function onCamChange() {
+    _selectedCamId = parseInt(document.getElementById('modCamSelect').value);
+    updateModPreview();
+}
+
+function updateModPreview() {
+    document.getElementById('modPreview').src = '/video_feed/' + _selectedCamId + '?t=' + Date.now();
+}
+
+function getCaptureUrl() {
+    return '/capture_frame?cam_id=' + _selectedCamId;
+}
 
 async function loadFaces() {
     const list = document.getElementById('list');
@@ -225,18 +261,19 @@ function showToast(text, type) {
 function triggerReupload(id, name) {
     _modPid = id; _modStep = 1; _modBlobs = [null, null, null, null];
     document.getElementById('reuploadTitle').textContent = `更新照片 — ${name}`;
-    document.getElementById('modPreview').src = '/video_feed';
     document.getElementById('modCapturedList').innerHTML = '';
     document.getElementById('modSubmitCount').textContent = '0';
     document.getElementById('modActionsCapture').style.display = 'flex';
     document.getElementById('modActionsSubmit').style.display = 'none';
     document.getElementById('reuploadModal').classList.add('active');
+    loadCameras().then(() => updateModPreview());
     updateModUI();
 }
 
 function closeReuploadModal() {
     document.getElementById('reuploadModal').classList.remove('active');
     document.getElementById('modPreview').src = '';
+    document.getElementById('modCamSelect').innerHTML = '<option value="">加载摄像头列表...</option>';
     _modPid = null; _modBlobs = [null, null, null, null]; _modStep = 1;
 }
 
@@ -266,7 +303,7 @@ function updateModUI() {
 
 async function modCapture() {
     try {
-        const resp = await fetch('/capture_frame');
+        const resp = await fetch(getCaptureUrl());
         if (!resp.ok) { alert('抓取失败'); return; }
         _modBlobs[_modStep] = await resp.blob();
         _modStep++;
