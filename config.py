@@ -31,8 +31,8 @@ MODEL_FALL_DETECT = 'fall_detect.pt'
 # ============================================================
 # Fall Detection Thresholds
 # ============================================================
-YELLOW_THRESHOLD = 0.55    # possible fall → yellow warning
-RED_THRESHOLD = 0.75       # confirmed fall → red alert
+YELLOW_THRESHOLD = 0.50    # possible fall → yellow warning
+RED_THRESHOLD = 0.60       # confirmed fall → red alert
 FALL_CONSECUTIVE_FRAMES = 2     # consecutive frames to confirm red alert
 YELLOW_HOLD_FRAMES = 5          # hold yellow warning for N frames
 FALL_COOLDOWN_SECONDS = 5       # minimum gap between red alerts
@@ -48,9 +48,9 @@ AUTO_LEARN_INTERVAL = 90        # frames between auto-learn embeddings
 # ============================================================
 # Face Recognition
 # ============================================================
-FACE_SIMILARITY_THRESHOLD = 0.50
-FACE_DET_SCORE_THRESHOLD = 0.30
-FACE_AUTO_LEARN_THRESHOLD = 0.70
+FACE_SIMILARITY_THRESHOLD = 0.35
+FACE_DET_SCORE_THRESHOLD = 0.20
+FACE_AUTO_LEARN_THRESHOLD = 0.55
 INSIGHTFACE_CTX_ID = -1
 
 # ============================================================
@@ -64,7 +64,7 @@ IOU_MATCH_MIN = 0.3             # minimum IoU to match detection to track
 # ============================================================
 YOLO_IMGSZ = 416
 JPEG_QUALITY = 60
-FRAME_QUEUE_SIZE = 2
+FRAME_QUEUE_SIZE = 30
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
 

@@ -101,11 +101,14 @@ def _scan_usb_cameras(max_index=5):
     """Scan for available USB/built-in cameras. Returns list of working indices."""
     available = []
     for i in range(max_index):
-        cap = cv2.VideoCapture(i)
-        ok, _ = cap.read()
-        cap.release()
-        if ok:
-            available.append(i)
+        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+        if cap.isOpened():
+            ok, _ = cap.read()
+            cap.release()
+            if ok:
+                available.append(i)
+        else:
+            cap.release()
     return available
 
 
@@ -257,7 +260,21 @@ def init_db():
     cols = [c[1] for c in conn.execute('PRAGMA table_info(events)').fetchall()]
     if 'permanent' not in cols:
         conn.execute('ALTER TABLE events ADD COLUMN permanent INTEGER DEFAULT 0')
+    # Users table for auth
+    conn.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, '
+                 'username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, '
+                 'role TEXT NOT NULL DEFAULT "user", is_active INTEGER DEFAULT 1, '
+                 'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
     conn.commit()
+    # Bootstrap default admin if no users exist
+    if conn.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 0:
+        from werkzeug.security import generate_password_hash
+        admin_user = os.getenv('SAFESIGHT_USER', 'admin')
+        admin_pass = os.getenv('SAFESIGHT_PASS', 'safesight2024')
+        conn.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+                     (admin_user, generate_password_hash(admin_pass), 'admin'))
+        conn.commit()
+        log.info('Bootstrapped admin user: %s', admin_user)
     cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='faces'")
     if cur.fetchone():
         _migrate_v2(conn)
@@ -267,7 +284,7 @@ def init_db():
 
 init_db()
 ai_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='ai')
-ai_toggle = False  # AI analysis off by default, user can toggle on via UI
+ai_toggle = True  # AI analysis on by default
 
 # ---- Event cleanup: 7-day auto-delete, permanent events preserved ----
 def cleanup_old_events():
@@ -446,12 +463,12 @@ def recognize_face(frame_bgr, frame_no=0):
 # YOLO helpers
 # ============================================================
 # ============================================================
-# Multi-person tracker (simple IoU-based)
+# Multi-person tracker (simple IoU-based, per-camera state)
 # ============================================================
 TRACK_MAX_LOST = 30    # frames before removing a lost track
 IOU_MATCH_MIN = 0.3    # minimum IoU to consider a match
-next_track_id = 0
-tracked_persons = {}   # id -> {bbox,last_seen,kp,kp_conf,hip_hist,angle_hist,fall_cnt,name,color}
+tracked_persons_by_cam = {}  # cam_id -> {track_id -> {...}}
+next_track_id_by_cam = {}    # cam_id -> int
 tracker_lock = threading.Lock()
 
 PERSON_COLORS = [
@@ -470,18 +487,27 @@ def _iou(boxA, boxB):
     return inter / float(areaA + areaB - inter)
 
 
-def _match_or_create_tracks(detections, frame_no):
+def _get_tracker_state(cam_key):
+    """Get or initialize per-camera tracking state."""
+    if cam_key not in tracked_persons_by_cam:
+        tracked_persons_by_cam[cam_key] = {}
+        next_track_id_by_cam[cam_key] = 0
+    return tracked_persons_by_cam[cam_key], next_track_id_by_cam[cam_key]
+
+
+def _match_or_create_tracks(detections, frame_no, cam_key):
     """
     detections: list of (bbox_xyxy, kp_xy, kp_conf)
-    Matches detections to existing tracks via IoU, creates new tracks as needed.
+    cam_key: unique key for this camera (to isolate tracking state)
     """
-    global next_track_id
+    tracked, nid_ref = _get_tracker_state(cam_key)
+    next_id = nid_ref
     matched_tids = set()
     new_tracks = {}
 
     for det_bbox, kp, kp_conf in detections:
         best_tid, best_iou = None, 0
-        for tid, t in tracked_persons.items():
+        for tid, t in tracked.items():
             if tid in matched_tids:
                 continue
             iou = _iou(det_bbox, t['bbox'])
@@ -489,12 +515,12 @@ def _match_or_create_tracks(detections, frame_no):
                 best_iou = iou; best_tid = tid
         if best_tid is not None and best_iou >= IOU_MATCH_MIN:
             tid = best_tid; matched_tids.add(tid)
-            t = tracked_persons[tid]
+            t = tracked[tid]
             t['bbox'] = det_bbox; t['last_seen'] = frame_no
             t['kp'] = kp; t['kp_conf'] = kp_conf
             new_tracks[tid] = t
         else:
-            tid = next_track_id; next_track_id += 1
+            tid = next_id; next_id += 1
             color = PERSON_COLORS[tid % len(PERSON_COLORS)]
             new_tracks[tid] = {
                 'bbox': det_bbox, 'last_seen': frame_no,
@@ -506,13 +532,15 @@ def _match_or_create_tracks(detections, frame_no):
                 'last_p_fall': 0.0,
             }
 
-    # Remove stale tracks
-    stale = [tid for tid in tracked_persons if frame_no - tracked_persons[tid]['last_seen'] > TRACK_MAX_LOST]
-    for tid in stale:
-        del tracked_persons[tid]
+    next_track_id_by_cam[cam_key] = next_id
 
-    tracked_persons.clear()
-    tracked_persons.update(new_tracks)
+    # Remove stale tracks
+    stale = [tid for tid in tracked if frame_no - tracked[tid]['last_seen'] > TRACK_MAX_LOST]
+    for tid in stale:
+        del tracked[tid]
+
+    tracked.clear()
+    tracked.update(new_tracks)
     return new_tracks
 
 
@@ -753,7 +781,7 @@ def detection_worker(cam_id):
     fq = frame_queues[cam_id]
     dl = detection_locks[cam_id]
     ld = latest_detections[cam_id]
-    global last_fall_time
+    global last_fall_time, recognized_name
 
     while alive.is_set():
         try:
@@ -799,7 +827,7 @@ def detection_worker(cam_id):
             detections = all_persons(result)
 
             with tracker_lock:
-                tracks = _match_or_create_tracks(detections, det_frame_count)
+                tracks = _match_or_create_tracks(detections, det_frame_count, cam_id)
                 person_count_list[cam_id] = len(tracks)
 
             # Per-person face recognition
@@ -863,7 +891,7 @@ def detection_worker(cam_id):
                 if is_fall_now: t['fall_counter'] += 1
                 else: t['fall_counter'] = 0
                 if t['fall_counter'] >= FALL_CONSECUTIVE_FRAMES:
-                    any_is_fall = True; t['fall_counter'] = 0
+                    any_is_fall = True
 
             last_p_fall_list[cam_id] = max_p_fall
 
@@ -880,6 +908,7 @@ def detection_worker(cam_id):
             now = time.time()
             for tid, t in tracks.items():
                 if t['fall_counter'] >= FALL_CONSECUTIVE_FRAMES:
+                    t['fall_counter'] = 0
                     if (now - last_fall_time) > FALL_COOLDOWN_SECONDS:
                         last_fall_time = now
                         pname = t.get('name') or '陌生人'
@@ -911,19 +940,36 @@ def detection_worker(cam_id):
 # MJPEG Stream Generator (reads camera, feeds detection, draws overlays)
 # ============================================================
 def open_camera(source):
-    cap = cv2.VideoCapture(source)
+    cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+    if not cap.isOpened():
+        cap = cv2.VideoCapture(source)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     return cap
 
 
 def open_rtsp_camera(source, cam_id):
-    """Open RTSP camera with staggered delay to avoid NVR connection limit."""
+    """Open RTSP camera with timeout and staggered delay."""
     import time as _time
-    _time.sleep(cam_id * 0.5)  # 0.5s stagger per camera
+    _time.sleep(cam_id * 0.3)  # 0.3s stagger per camera
+    # Set RTSP timeout via env var (5 seconds)
+    os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp|timeout;5000000'
     cap = cv2.VideoCapture(source, cv2.CAP_FFMPEG)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     cap.set(cv2.CAP_PROP_FPS, 60)
+    # Apply timeouts (OpenCV 4.5+)
+    for prop, val in [(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000),
+                      (cv2.CAP_PROP_READ_TIMEOUT_MSEC, 3000)]:
+        try:
+            cap.set(prop, val)
+        except Exception:
+            pass
+    if not cap.isOpened():
+        log.warning('RTSP camera %d failed to open: %s', cam_id, source)
+        cap.release()
+        return None
     return cap
 
 
@@ -1025,9 +1071,12 @@ def generate_frames(cam_id, show_overlay=True):
                         cv2.circle(frame, (cx, cy), 5, (255, 255, 255), 1)
 
                 bx, by = int(t['bbox'][0]), int(t['bbox'][1])
+                bw = int(t['bbox'][2] - t['bbox'][0])
+                bh = int(t['bbox'][3] - t['bbox'][1])
+                cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), color, 2)
                 label = f'{pname} | {p_fall_val:.2f}'
                 (lw, _), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
-                lx = max(0, bx + int((t['bbox'][2] - t['bbox'][0] - lw) / 2))
+                lx = max(0, bx + int((bw - lw) / 2))
                 ly = max(20, by - 8)
                 cv2.putText(frame, label, (lx, ly), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
 
@@ -1063,9 +1112,8 @@ def generate_frames(cam_id, show_overlay=True):
 # Auth
 # ============================================================
 import secrets
+from werkzeug.security import generate_password_hash, check_password_hash
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
-DEFAULT_USER = os.getenv('SAFESIGHT_USER', 'admin')
-DEFAULT_PASS = os.getenv('SAFESIGHT_PASS', 'safesight2024')
 
 
 def login_required(f):
@@ -1076,6 +1124,18 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if not session.get('logged_in'):
             return redirect(url_for('login_page'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def admin_required(f):
+    """Decorator: return 403 if not admin."""
+    from functools import wraps
+    from flask import session, jsonify as _jsonify
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if session.get('role') != 'admin':
+            return _jsonify({'ok': False, 'error': '需要管理员权限'}), 403
         return f(*args, **kwargs)
     return decorated
 
@@ -1091,18 +1151,28 @@ def login_page():
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
-    """Authenticate user, set session."""
+    """Authenticate user against DB, set session."""
     from flask import session
     data = request.get_json(force=True) or {}
     username = (data.get('username') or '').strip()
     password = (data.get('password') or '')
-    if username == DEFAULT_USER and password == DEFAULT_PASS:
-        session['logged_in'] = True
-        session['username'] = username
-        log.info('User "%s" logged in', username)
-        return jsonify({'ok': True, 'redirect': '/hall'})
-    log.warning('Failed login attempt for "%s"', username)
-    return jsonify({'ok': False, 'error': '用户名或密码错误'}), 401
+    if not username or not password:
+        return jsonify({'ok': False, 'error': '请输入用户名和密码'}), 400
+    conn = get_db()
+    row = conn.execute('SELECT id, username, password_hash, role, is_active FROM users WHERE username = ?',
+                       (username,)).fetchone()
+    conn.close()
+    if not row or not check_password_hash(row['password_hash'], password):
+        log.warning('Failed login attempt for "%s"', username)
+        return jsonify({'ok': False, 'error': '用户名或密码错误'}), 401
+    if not row['is_active']:
+        return jsonify({'ok': False, 'error': '账号已被禁用，请联系管理员'}), 403
+    session['logged_in'] = True
+    session['username'] = row['username']
+    session['role'] = row['role']
+    session['user_id'] = row['id']
+    log.info('User "%s" (%s) logged in', username, row['role'])
+    return jsonify({'ok': True, 'redirect': '/hall'})
 
 
 @app.route('/api/logout', methods=['POST'])
@@ -1111,6 +1181,117 @@ def api_logout():
     from flask import session
     session.clear()
     return jsonify({'ok': True})
+
+# ---- Template context: inject user info for nav ----
+@app.context_processor
+def _inject_user():
+    from flask import session as _s
+    return dict(_user={'username': _s.get('username'), 'role': _s.get('role')}
+                if _s.get('logged_in') else {})
+
+
+# ============================================================
+# User Registration & Management
+# ============================================================
+@app.route('/register_user')
+def register_user_page():
+    """User self-registration page (no auth required)."""
+    from flask import session, redirect, url_for
+    if session.get('logged_in'):
+        return redirect(url_for('hall'))
+    return render_template('register_user.html')
+
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    """Create a new user account (role=user)."""
+    data = request.get_json(force=True) or {}
+    username = (data.get('username') or '').strip()
+    password = (data.get('password') or '')
+    if not username or not password:
+        return jsonify({'ok': False, 'error': '用户名和密码不能为空'}), 400
+    if len(username) < 2 or len(username) > 32:
+        return jsonify({'ok': False, 'error': '用户名长度需在2-32个字符之间'}), 400
+    if len(password) < 6:
+        return jsonify({'ok': False, 'error': '密码长度不能少于6位'}), 400
+    from werkzeug.security import generate_password_hash as _gh
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
+                     (username, _gh(password)))
+        conn.commit()
+        log.info('New user registered: %s', username)
+        return jsonify({'ok': True, 'message': '注册成功，请登录'})
+    except sqlite3.IntegrityError:
+        return jsonify({'ok': False, 'error': '用户名已存在'}), 409
+    finally:
+        conn.close()
+
+
+@app.route('/users')
+@login_required
+@admin_required
+def users_page():
+    """Admin user management page."""
+    return render_template('users.html')
+
+
+@app.route('/api/users')
+@login_required
+@admin_required
+def api_users():
+    """List all users."""
+    from flask import session
+    conn = get_db()
+    rows = conn.execute('SELECT id, username, role, is_active, created_at FROM users ORDER BY id').fetchall()
+    conn.close()
+    users = [{'id': r['id'], 'username': r['username'], 'role': r['role'],
+              'is_active': bool(r['is_active']), 'created_at': r['created_at']} for r in rows]
+    return jsonify({'ok': True, 'users': users,
+                    'current_user_id': session.get('user_id')})
+
+
+@app.route('/api/users/<int:uid>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_delete_user(uid):
+    """Delete a user. Admin cannot delete themselves."""
+    from flask import session
+    if uid == session.get('user_id'):
+        return jsonify({'ok': False, 'error': '不能删除自己'}), 400
+    conn = get_db()
+    row = conn.execute('SELECT role FROM users WHERE id = ?', (uid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'ok': False, 'error': '用户不存在'}), 404
+    conn.execute('DELETE FROM users WHERE id = ?', (uid,))
+    conn.commit()
+    conn.close()
+    log.info('Admin "%s" deleted user id=%d', session.get('username'), uid)
+    return jsonify({'ok': True, 'message': '用户已删除'})
+
+
+@app.route('/api/users/<int:uid>/toggle', methods=['POST'])
+@login_required
+@admin_required
+def api_toggle_user(uid):
+    """Toggle user active/inactive. Admin cannot disable themselves."""
+    from flask import session
+    if uid == session.get('user_id'):
+        return jsonify({'ok': False, 'error': '不能禁用自己'}), 400
+    conn = get_db()
+    row = conn.execute('SELECT id, is_active FROM users WHERE id = ?', (uid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'ok': False, 'error': '用户不存在'}), 404
+    new_val = 0 if row['is_active'] else 1
+    conn.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_val, uid))
+    conn.commit()
+    conn.close()
+    action = '禁用' if new_val == 0 else '启用'
+    log.info('Admin "%s" %s user id=%d', session.get('username'), action, uid)
+    return jsonify({'ok': True, 'is_active': bool(new_val), 'message': f'用户已{action}'})
+
 
 # ============================================================
 # Routes — Pages
@@ -1853,9 +2034,21 @@ def test_page():
         vf = request.files.get('video')
         if not vf or vf.filename == '':
             return jsonify({'ok': False, 'error': '请选择视频文件'}), 400
-        vp = os.path.join('static', 'test_video.mp4')
+        # Use unique filename so the test_feed generator detects the change
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        vp = os.path.join('static', f'test_video_{ts}.mp4')
         vf.save(vp)
+        # Clean up old test videos
+        import glob as _glob
+        for old in _glob.glob(os.path.join('static', 'test_video_*.mp4')):
+            if old != vp:
+                try:
+                    os.remove(old)
+                except OSError:
+                    pass
         with test_video_lock:
+            # If there's an old generator running, signal it to stop
+            old_vp = test_video_path
             test_video_path = vp
             # Save and disable all cameras
             test_saved_cam_states.clear()
@@ -1960,7 +2153,7 @@ def test_feed():
 
                 # Match tracks
                 with tracker_lock:
-                    tracks = _match_or_create_tracks(dets, int(cap.get(cv2.CAP_PROP_POS_FRAMES)))
+                    tracks = _match_or_create_tracks(dets, int(cap.get(cv2.CAP_PROP_POS_FRAMES)), '__test__')
 
                 max_p_fall = 0.0; any_fall = False
                 for tid, t in tracks.items():
@@ -1996,6 +2189,12 @@ def test_feed():
 
                     if show_overlay:
                         color = (0, 0, 255) if t['fall_counter'] > 0 else t.get('color', (0, 255, 0))
+                        # Draw bounding box
+                        bx, by = int(t['bbox'][0]), int(t['bbox'][1])
+                        bw = int(t['bbox'][2] - t['bbox'][0])
+                        bh = int(t['bbox'][3] - t['bbox'][1])
+                        cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), color, 2)
+                        # Draw skeleton
                         for a, b in SKELETON_EDGES:
                             if kp_conf[a] > 0.5 and kp_conf[b] > 0.5:
                                 cv2.line(frame, (int(kp[a][0]), int(kp[a][1])),
@@ -2003,6 +2202,13 @@ def test_feed():
                         for i in range(len(kp)):
                             if kp_conf[i] > 0.5:
                                 cv2.circle(frame, (int(kp[i][0]), int(kp[i][1])), 4, color, -1)
+                        # Label on bounding box
+                        pname = t.get('name') or ''
+                        label = f'{pname} | {pf:.2f}' if pname else f'{pf:.2f}'
+                        (lw, _), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+                        lx = max(0, bx + int((bw - lw) / 2))
+                        ly = max(20, by - 8)
+                        cv2.putText(frame, label, (lx, ly), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
 
                 if show_overlay:
                     # HUD
