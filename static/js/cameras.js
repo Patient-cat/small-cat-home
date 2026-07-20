@@ -433,21 +433,29 @@ function showToast(text, type) {
 let roiPoints = [];
 let isDrawingROI = false;
 let currentROICamId = null;
+let roiDrawMode = 'rect'; // 'rect' or 'polygon'
+let rectStart = null; // {x, y} for rect mode
+let rectPreview = null; // {x1,y1,x2,y2} for live preview
 
 function openROIConfig(camId) {
     currentROICamId = camId;
     roiPoints = [];
     isDrawingROI = true;
+    rectStart = null;
+    rectPreview = null;
 
-    // Create ROI config modal
     const modal = document.createElement('div');
     modal.id = 'roiModal';
     modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;display:flex;align-items:center;justify-content:center;';
 
     modal.innerHTML = `
         <div style="background:#111922;border:1px solid #1e2d3d;border-radius:12px;padding:24px;max-width:700px;width:90%;">
-            <h3 style="color:#4fc3f7;margin-bottom:16px;">配置行走区域 (ROI) - 摄像头 ${camId + 1}</h3>
-            <p style="color:#5a7a8a;font-size:13px;margin-bottom:12px;">点击画面添加顶点，至少3个点形成闭合区域。只有在此区域内的物体才会触发告警。</p>
+            <h3 style="color:#4fc3f7;margin-bottom:12px;">配置行走区域 - 摄像头 ${camId + 1}</h3>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <button id="modeRect" onclick="setROIMode('rect')" style="padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #00d4aa;background:#00d4aa;color:#000;font-weight:600;">矩形模式</button>
+                <button id="modePoly" onclick="setROIMode('polygon')" style="padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #5a7a8a;background:transparent;color:#c8d8e0;">多边形模式</button>
+            </div>
+            <p id="roiHint" style="color:#5a7a8a;font-size:12px;margin-bottom:10px;">拖拽画一个矩形区域，只有区域内的物体才会触发告警。</p>
             <div style="position:relative;width:100%;aspect-ratio:4/3;background:#000;border:1px solid #1e2d3d;">
                 <img id="roiVideo" src="/video_feed/${camId}" style="width:100%;height:100%;object-fit:contain;display:block;" />
                 <canvas id="roiCanvas" width="640" height="480" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair;"></canvas>
@@ -461,21 +469,84 @@ function openROIConfig(camId) {
     `;
 
     document.body.appendChild(modal);
-
-    // Load existing ROI
     loadExistingROI(camId);
+    setupCanvasHandlers();
+}
 
-    // Setup canvas click handler
+function setROIMode(mode) {
+    roiDrawMode = mode;
+    roiPoints = [];
+    rectStart = null;
+    rectPreview = null;
+    drawROI();
+    document.getElementById('modeRect').style.cssText = mode === 'rect'
+        ? 'padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #00d4aa;background:#00d4aa;color:#000;font-weight:600;'
+        : 'padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #5a7a8a;background:transparent;color:#c8d8e0;';
+    document.getElementById('modePoly').style.cssText = mode === 'polygon'
+        ? 'padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #00d4aa;background:#00d4aa;color:#000;font-weight:600;'
+        : 'padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #5a7a8a;background:transparent;color:#c8d8e0;';
+    document.getElementById('roiHint').textContent = mode === 'rect'
+        ? '拖拽画一个矩形区域，只有区域内的物体才会触发告警。'
+        : '点击画面添加顶点（至少3个），双击完成。只有区域内的物体才会触发告警。';
+    drawROI();
+}
+
+function setupCanvasHandlers() {
     const canvas = document.getElementById('roiCanvas');
-    canvas.addEventListener('click', function(e) {
-        if (!isDrawingROI) return;
+    if (!canvas) return;
 
+    // Rect mode: mousedown → mousemove → mouseup
+    canvas.addEventListener('mousedown', function(e) {
+        if (roiDrawMode !== 'rect') return;
         const rect = canvas.getBoundingClientRect();
         const x = (e.clientX - rect.left) / canvas.width;
         const y = (e.clientY - rect.top) / canvas.height;
+        rectStart = {x, y};
+        rectPreview = null;
+    });
 
+    canvas.addEventListener('mousemove', function(e) {
+        if (roiDrawMode !== 'rect' || !rectStart) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / canvas.width;
+        const y = (e.clientY - rect.top) / canvas.height;
+        rectPreview = {
+            x1: Math.min(rectStart.x, x), y1: Math.min(rectStart.y, y),
+            x2: Math.max(rectStart.x, x), y2: Math.max(rectStart.y, y)
+        };
+        drawROI();
+    });
+
+    canvas.addEventListener('mouseup', function(e) {
+        if (roiDrawMode !== 'rect' || !rectStart) return;
+        if (rectPreview && (rectPreview.x2 - rectPreview.x1) > 0.02 && (rectPreview.y2 - rectPreview.y1) > 0.02) {
+            roiPoints = [
+                [rectPreview.x1, rectPreview.y1],
+                [rectPreview.x2, rectPreview.y1],
+                [rectPreview.x2, rectPreview.y2],
+                [rectPreview.x1, rectPreview.y2]
+            ];
+        }
+        rectStart = null;
+        rectPreview = null;
+        drawROI();
+    });
+
+    // Polygon mode: click to add points, double-click to finish
+    canvas.addEventListener('click', function(e) {
+        if (roiDrawMode !== 'polygon') return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / canvas.width;
+        const y = (e.clientY - rect.top) / canvas.height;
         roiPoints.push([x, y]);
         drawROI();
+    });
+
+    canvas.addEventListener('dblclick', function(e) {
+        if (roiDrawMode !== 'polygon') return;
+        if (roiPoints.length >= 3) {
+            drawROI(); // Finalize polygon
+        }
     });
 }
 
@@ -497,8 +568,24 @@ function drawROI() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Draw rect preview during drag
+    if (rectPreview) {
+        const x = rectPreview.x1 * canvas.width;
+        const y = rectPreview.y1 * canvas.height;
+        const w = (rectPreview.x2 - rectPreview.x1) * canvas.width;
+        const h = (rectPreview.y2 - rectPreview.y1) * canvas.height;
+        ctx.strokeStyle = '#00d4aa';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 3]);
+        ctx.strokeRect(x, y, w, h);
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(0, 212, 170, 0.1)';
+        ctx.fillRect(x, y, w, h);
+        return;
+    }
+
+    // Draw points only (< 3 points in polygon mode)
     if (roiPoints.length < 3) {
-        // Draw points only
         roiPoints.forEach((p, i) => {
             const px = p[0] * canvas.width;
             const py = p[1] * canvas.height;
@@ -513,7 +600,7 @@ function drawROI() {
         return;
     }
 
-    // Draw polygon
+    // Draw filled polygon
     ctx.beginPath();
     ctx.moveTo(roiPoints[0][0] * canvas.width, roiPoints[0][1] * canvas.height);
     for (let i = 1; i < roiPoints.length; i++) {
@@ -526,7 +613,7 @@ function drawROI() {
     ctx.fillStyle = 'rgba(0, 212, 170, 0.15)';
     ctx.fill();
 
-    // Draw points
+    // Draw vertex points
     roiPoints.forEach((p, i) => {
         const px = p[0] * canvas.width;
         const py = p[1] * canvas.height;
