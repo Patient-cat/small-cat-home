@@ -19,11 +19,11 @@ def api_health():
     for c in CAMERAS:
         cid = c['id']
         cameras.append({
-            'id': cid,
+            'id': int(cid),
             'name': camera_names.get(str(cid), f'摄像头{cid+1}'),
-            'fps': current_fps_list.get(cid, 0),
-            'persons': person_count_list.get(cid, 0),
-            'p_fall': last_p_fall_list.get(cid, 0),
+            'fps': float(current_fps_list.get(cid, 0)),
+            'persons': int(person_count_list.get(cid, 0)),
+            'p_fall': float(last_p_fall_list.get(cid, 0)),
         })
 
     return jsonify({

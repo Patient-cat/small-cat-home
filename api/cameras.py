@@ -14,10 +14,11 @@ def api_cameras_list():
     """List all cameras."""
     from core.state import CAMERAS, camera_names, camera_enabled, current_fps_list
     return jsonify([{
-        'id': c['id'], 'source': c['source'],
+        'id': int(c['id']),
+        'source': c['source'],
         'name': camera_names.get(str(c['id']), f'摄像头{c["id"]+1}'),
-        'enabled': camera_enabled.get(c['id'], False),
-        'fps': current_fps_list.get(c['id'], 0),
+        'enabled': bool(camera_enabled.get(c['id'], False)),
+        'fps': float(current_fps_list.get(c['id'], 0)),
     } for c in CAMERAS])
 
 
