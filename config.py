@@ -126,6 +126,27 @@ GROUND_HAZARD_TARGET_CLASSES = [24, 25, 26, 28, 39, 41, 45, 46, 47, 73, 76]
 #               knife, fork, spoon, book, scissors
 
 # ============================================================
+# Ground Hazard Risk Levels
+# ============================================================
+HAZARD_RISK_LEVELS = {
+    'high':   {'color': (0, 0, 255),    'label': '高危', 'alert': True},
+    'medium': {'color': (0, 165, 255),  'label': '中危', 'alert': True},
+    'low':    {'color': (0, 255, 255),  'label': '低危', 'alert': True},
+    'ignore': {'color': (128, 128, 128), 'label': '忽略', 'alert': False},
+}
+
+# Default risk level for each COCO class
+HAZARD_CLASS_LEVELS = {
+    # high risk — tripping hazards
+    'backpack': 'medium', 'handbag': 'medium', 'suitcase': 'medium',
+    # medium risk
+    'umbrella': 'medium',
+    # low risk — small objects
+    'bottle': 'low', 'cup': 'low', 'book': 'low',
+    'knife': 'medium', 'fork': 'low', 'spoon': 'low', 'scissors': 'medium',
+}
+
+# ============================================================
 # Fall Detection Tuning
 # ============================================================
 FALL_DECAY_FACTOR = 0.85        # exponential decay for lost keypoints

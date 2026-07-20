@@ -50,6 +50,13 @@ def init_db():
         conn.execute('ALTER TABLE events ADD COLUMN permanent INTEGER DEFAULT 0')
     # Key-value settings table (setup wizard, etc.)
     conn.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+    # Custom hazards table (user-defined risk levels and categories)
+    conn.execute('CREATE TABLE IF NOT EXISTS custom_hazards ('
+                 'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+                 'name TEXT NOT NULL, '
+                 'category TEXT NOT NULL, '
+                 'risk_level TEXT DEFAULT "medium", '
+                 'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
     # Users table for auth
     conn.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, '
                  'username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, '

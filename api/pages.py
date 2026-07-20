@@ -100,3 +100,9 @@ def history():
 @login_required
 def cameras_page():
     return render_template('cameras.html')
+
+
+@pages_bp.route('/hazards')
+@login_required
+def hazards_page():
+    return render_template('hazards.html')

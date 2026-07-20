@@ -65,14 +65,24 @@ def draw_fall_boxes(frame, fd_boxes):
 
 
 def draw_ground_hazards(frame, ground_hazards):
-    """Draw ground hazard detection boxes."""
+    """Draw ground hazard detection boxes with risk-level colors."""
+    import config as cfg
     for hazard in ground_hazards:
         x1, y1, x2, y2 = hazard['bbox']
-        color = (0, 165, 255)  # Orange
+        class_name = hazard['name']
+        risk_level = 'medium'  # default
+        try:
+            from core.ground_hazard import _get_risk_level
+            risk_level = _get_risk_level(class_name)
+        except Exception:
+            pass
+        risk_info = cfg.HAZARD_RISK_LEVELS.get(risk_level, cfg.HAZARD_RISK_LEVELS['medium'])
+        color = risk_info['color']
+        label_text = risk_info['label']
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        label = f"{hazard['name']} {hazard['conf']:.2f}"
+        label = f"[{label_text}] {class_name} {hazard['conf']:.2f}"
         cv2.putText(frame, label, (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
 
 def draw_hud(frame, cam_id):

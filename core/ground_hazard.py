@@ -72,43 +72,79 @@ def check_person_distance(hazard_center, tracks):
     return min_dist, closest_name
 
 
+def _get_risk_level(class_name):
+    """Get effective risk level for a class, checking DB overrides first."""
+    import config as cfg
+    from models.database import db_connection
+
+    override_name = f'__override__:{class_name}'
+    with db_connection() as conn:
+        row = conn.execute(
+            'SELECT risk_level FROM custom_hazards WHERE name = ?', (override_name,)
+        ).fetchone()
+    if row:
+        return row['risk_level']
+    return cfg.HAZARD_CLASS_LEVELS.get(class_name, 'medium')
+
+
+def _get_display_name(class_name):
+    """Get custom display name for a class, or fall back to class_name."""
+    from models.database import db_connection
+    with db_connection() as conn:
+        row = conn.execute(
+            'SELECT name FROM custom_hazards WHERE category = ? AND name NOT LIKE "__override__:%" LIMIT 1',
+            (class_name,)
+        ).fetchone()
+    return row['name'] if row else class_name
+
+
 def process_ground_hazards(frame, model_ground, tracks, cam_id,
                            broadcast_fn, hazard_cooldown):
-    """Run ground hazard detection and emit distance-based alerts.
+    """Run ground hazard detection and emit distance + risk-level alerts.
 
-    Alert levels:
-        - distance < CLOSE (120px):  orange alert — "距离很近，请立即注意"
-        - distance < NEAR  (250px):  yellow alert  — "障碍物较近，请注意"
-
-    Args:
-        frame: current camera frame.
-        model_ground: YOLO model for object detection.
-        tracks: current tracked persons dict.
-        cam_id: camera ID.
-        broadcast_fn: callable(event_data) for alerts.
-        hazard_cooldown: dict for tracking alert cooldowns.
-
-    Returns:
-        List of detected hazards (for overlay drawing).
+    Risk levels:
+        - high   + close (<120px) → red alert
+        - medium + close (<120px) → orange alert
+        - low    + close (<120px) → yellow alert
+        - any    + near  (<250px) → yellow alert (one level down)
+        - ignore                 → never alert
     """
     hazards = detect_ground_hazards(frame, model_ground)
 
     for hazard in hazards:
+        class_name = hazard['name']
+        risk_level = _get_risk_level(class_name)
+
+        # Skip ignored classes
+        if risk_level == 'ignore':
+            continue
+
         dist, person_name = check_person_distance(hazard['center'], tracks)
 
-        # Determine alert level based on distance
+        # Determine alert level based on risk level + distance
+        import config as cfg
+        risk_info = cfg.HAZARD_RISK_LEVELS.get(risk_level, cfg.HAZARD_RISK_LEVELS['medium'])
+        display_name = _get_display_name(class_name)
+
         alert_level = None
         if dist < cfg.GROUND_HAZARD_CLOSE:
-            alert_level = 'orange'
-            alert_msg = f'地面障碍物：{hazard["name"]}，距离很近，请立即注意！'
+            if risk_level == 'high':
+                alert_level = 'red'
+                alert_msg = f'高危障碍物：{display_name}，距离极近，请立即处理！'
+            elif risk_level == 'medium':
+                alert_level = 'orange'
+                alert_msg = f'中危障碍物：{display_name}，距离很近，请注意！'
+            else:
+                alert_level = 'yellow'
+                alert_msg = f'低危障碍物：{display_name}，较近，请注意避让'
         elif dist < cfg.GROUND_HAZARD_NEAR:
             alert_level = 'yellow'
-            alert_msg = f'地面障碍物：{hazard["name"]}，较近，请注意避让'
+            alert_msg = f'障碍物：{display_name}，较近，请注意避让'
         else:
             continue  # Too far, no alert
 
         # Cooldown check
-        hazard_key = f"{cam_id}_{hazard['name']}"
+        hazard_key = f"{cam_id}_{class_name}"
         now = time.time()
         if hazard_key in hazard_cooldown:
             if now - hazard_cooldown[hazard_key] < cfg.GROUND_HAZARD_COOLDOWN:
@@ -119,7 +155,9 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
             'type': alert_level,
             'level': 1 if alert_level == 'yellow' else 2,
             'message': alert_msg,
-            'hazard_type': hazard['name'],
+            'hazard_type': class_name,
+            'display_name': display_name,
+            'risk_level': risk_level,
             'person_nearby': person_name,
             'distance': int(dist),
             'cam_id': cam_id,

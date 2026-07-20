@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>障碍物管理</title>
+<style>
+:root { --bg:#0a0e14; --card:#111922; --border:#1e2d3d; --accent:#4fc3f7; --green:#4caf50; --red:#f44336; --orange:#ff9800; --yellow:#ffeb3b; --text:#c8d8e0; --muted:#5a7a8a; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Microsoft YaHei',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+header { padding:14px 20px; background:var(--card); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:center; gap:16px; }
+header h1 { font-size:20px; color:var(--accent); font-weight:400; }
+.nav-link { color:var(--accent); text-decoration:none; font-size:13px; border:1px solid var(--accent); padding:5px 14px; border-radius:14px; }
+.nav-link:hover { background:var(--accent); color:#000; }
+.container { max-width:700px; margin:20px auto; padding:0 16px; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:14px; }
+.card h2 { font-size:17px; color:var(--accent); font-weight:400; margin-bottom:14px; }
+
+.hazard-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 14px; border:1px solid var(--border); border-radius:8px;
+    margin-bottom:8px; transition:border-color .2s;
+}
+.hazard-row .name { font-size:15px; font-weight:500; flex:1; }
+.hazard-row .category { font-size:12px; color:var(--muted); margin-left:10px; }
+.badge { font-size:11px; padding:2px 10px; border-radius:10px; font-weight:600; }
+.badge-high { background:rgba(244,67,54,0.2); color:var(--red); border:1px solid var(--red); }
+.badge-medium { background:rgba(255,152,0,0.2); color:var(--orange); border:1px solid var(--orange); }
+.badge-low { background:rgba(255,235,59,0.15); color:var(--yellow); border:1px solid var(--yellow); }
+.badge-ignore { background:rgba(128,128,128,0.2); color:#999; border:1px solid #666; }
+.btn-small { padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text); margin-left:6px; }
+.btn-small:hover { background:rgba(255,255,255,0.05); }
+.btn-delete { border-color:var(--red); color:var(--red); }
+.btn-delete:hover { background:var(--red); color:#fff; }
+
+select.risk-select {
+    padding:4px 8px; font-size:12px; border:1px solid var(--border);
+    border-radius:6px; background:var(--card); color:var(--text);
+}
+
+.add-form { display:flex; gap:8px; align-items:flex-end; margin-top:14px; }
+.add-form input, .add-form select {
+    padding:9px 12px; border:1px solid var(--border); border-radius:8px;
+    background:var(--bg); color:var(--text); font-size:14px; outline:none;
+}
+.add-form input:focus, .add-form select:focus { border-color:var(--accent); }
+.btn-add { padding:9px 20px; background:var(--green); color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold; font-size:14px; }
+.btn-add:hover { opacity:.85; }
+
+.toast { display:none; position:fixed; top:20px; right:20px; padding:12px 20px; border-radius:8px; font-size:14px; z-index:999; }
+.toast.success { display:block; background:var(--green); color:#fff; }
+.toast.error { display:block; background:var(--red); color:#fff; }
+</style>
+</head>
+<body>
+<header>
+    <h1>障碍物管理</h1>
+    <a href="/hall" class="nav-link">监控大厅</a>
+    <a href="/cameras" class="nav-link">摄像头管理</a>
+</header>
+
+<div class="container">
+    <!-- COCO Class Risk Levels -->
+    <div class="card">
+        <h2>已识别障碍物类型（COCO 默认）</h2>
+        <p style="color:var(--muted);font-size:12px;margin-bottom:14px;">修改风险等级后立即生效，无需重启。</p>
+        <div id="classList"></div>
+    </div>
+
+    <!-- Custom Hazards -->
+    <div class="card">
+        <h2>自定义障碍物</h2>
+        <p style="color:var(--muted);font-size:12px;margin-bottom:14px;">添加您关心的特定障碍物，并设置风险等级。</p>
+        <div id="customList"></div>
+        <div class="add-form">
+            <input type="text" id="addName" placeholder="名称（如：爷爷的拐杖）" style="flex:2;">
+            <input type="text" id="addCategory" placeholder="关联类别（可选）" style="flex:1;">
+            <select id="addLevel">
+                <option value="high">高危</option>
+                <option value="medium" selected>中危</option>
+                <option value="low">低危</option>
+                <option value="ignore">忽略</option>
+            </select>
+            <button class="btn-add" onclick="addCustom()">添加</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const LEVELS = {high:'高危', medium:'中危', low:'低危', ignore:'忽略'};
+const LEVEL_BADGE = {high:'badge-high', medium:'badge-medium', low:'badge-low', ignore:'badge-ignore'};
+
+async function loadClasses() {
+    const resp = await fetch('/api/hazards/classes');
+    const data = await resp.json();
+    const el = document.getElementById('classList');
+    el.innerHTML = Object.entries(data).map(([cat, level]) => `
+        <div class="hazard-row">
+            <span class="name">${esc(cat)}</span>
+            <span class="badge ${LEVEL_BADGE[level] || 'badge-medium'}">${LEVELS[level] || level}</span>
+            <select class="risk-select" onchange="updateClassLevel('${cat}', this.value)">
+                <option value="high" ${level==='high'?'selected':''}>高危</option>
+                <option value="medium" ${level==='medium'?'selected':''}>中危</option>
+                <option value="low" ${level==='low'?'selected':''}>低危</option>
+                <option value="ignore" ${level==='ignore'?'selected':''}>忽略</option>
+            </select>
+        </div>
+    `).join('');
+}
+
+async function loadCustom() {
+    const resp = await fetch('/api/hazards/custom');
+    const data = await resp.json();
+    const el = document.getElementById('customList');
+    if (data.length === 0) {
+        el.innerHTML = '<p style="color:var(--muted);font-size:13px;">暂无自定义障碍物</p>';
+        return;
+    }
+    el.innerHTML = data.map(h => `
+        <div class="hazard-row">
+            <span class="name">${esc(h.name)}</span>
+            <span class="category">${esc(h.category || '无关联')}</span>
+            <span class="badge ${LEVEL_BADGE[h.risk_level] || 'badge-medium'}">${LEVELS[h.risk_level] || h.risk_level}</span>
+            <select class="risk-select" onchange="updateCustom(${h.id}, {risk_level:this.value})">
+                <option value="high" ${h.risk_level==='high'?'selected':''}>高危</option>
+                <option value="medium" ${h.risk_level==='medium'?'selected':''}>中危</option>
+                <option value="low" ${h.risk_level==='low'?'selected':''}>低危</option>
+                <option value="ignore" ${h.risk_level==='ignore'?'selected':''}>忽略</option>
+            </select>
+            <button class="btn-small btn-delete" onclick="deleteCustom(${h.id})">删除</button>
+        </div>
+    `).join('');
+}
+
+async function updateClassLevel(cat, level) {
+    const resp = await fetch('/api/hazards/class-level', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({category:cat, risk_level:level})
+    });
+    const d = await resp.json();
+    showToast(d.ok ? `${cat} → ${LEVELS[level]}` : (d.error||'更新失败'), d.ok?'success':'error');
+    loadClasses();
+}
+
+async function addCustom() {
+    const name = document.getElementById('addName').value.trim();
+    const category = document.getElementById('addCategory').value.trim();
+    const level = document.getElementById('addLevel').value;
+    if (!name) return showToast('请输入名称','error');
+    const resp = await fetch('/api/hazards/custom', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name, category, risk_level:level})
+    });
+    const d = await resp.json();
+    showToast(d.ok ? '已添加' : (d.error||'添加失败'), d.ok?'success':'error');
+    if (d.ok) { document.getElementById('addName').value=''; document.getElementById('addCategory').value=''; loadCustom(); }
+}
+
+async function updateCustom(id, data) {
+    await fetch(`/api/hazards/custom/${id}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(data)
+    });
+    loadCustom();
+}
+
+async function deleteCustom(id) {
+    if (!confirm('确定删除？')) return;
+    const resp = await fetch(`/api/hazards/custom/${id}`, {method:'DELETE'});
+    const d = await resp.json();
+    showToast(d.ok?'已删除':(d.error||'删除失败'), d.ok?'success':'error');
+    loadCustom();
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showToast(text, type) {
+    const t = document.getElementById('toast');
+    t.textContent = text; t.className = 'toast '+type; t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+}
+
+loadClasses();
+loadCustom();
+</script>
+</body>
+</html>

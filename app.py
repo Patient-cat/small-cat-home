@@ -56,6 +56,7 @@ from api.auth import auth_bp
 from api.cameras import cameras_bp
 from api.events import events_bp
 from api.faces import faces_bp
+from api.hazards import hazards_bp
 from api.pages import pages_bp
 from api.system import system_bp
 from api.streaming import streaming_bp
@@ -65,6 +66,7 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(cameras_bp)
 app.register_blueprint(events_bp)
 app.register_blueprint(faces_bp)
+app.register_blueprint(hazards_bp)
 app.register_blueprint(pages_bp)
 app.register_blueprint(system_bp)
 app.register_blueprint(streaming_bp)
