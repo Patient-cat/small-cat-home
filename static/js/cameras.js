@@ -577,5 +577,3 @@ async function saveROI() {
 }
 
 loadList();
-</script>
-</body>

@@ -352,5 +352,4 @@ function pollStats() {
 }
 loadAll();
 setInterval(pollStats, 3000);
-</script>
-</body>
+

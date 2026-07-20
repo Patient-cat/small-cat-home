@@ -40,5 +40,4 @@ function handleLogin(e) {
 
 // Auto-focus
 document.getElementById('username').focus();
-</script>
-</body>
+
