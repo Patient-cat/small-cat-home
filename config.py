@@ -76,8 +76,8 @@ IOU_MATCH_MIN = 0.3             # minimum IoU to match detection to track
 YOLO_IMGSZ = 640        # YOLO inference size (higher = more accurate, slower)
 JPEG_QUALITY = 85       # MJPEG stream quality (60→85 much sharper)
 FRAME_QUEUE_SIZE = 30
-CAMERA_WIDTH = 1280     # Camera capture width (640→1280)
-CAMERA_HEIGHT = 720     # Camera capture height (480→720)
+CAMERA_WIDTH = 960      # Camera capture width
+CAMERA_HEIGHT = 540     # Camera capture height
 
 # ============================================================
 # Cleanup
@@ -128,8 +128,8 @@ GROUND_HAZARD_TARGET_CLASSES = [24, 25, 26, 28, 39, 41, 45, 46, 47, 73, 76]
 # Fall Detection Tuning
 # ============================================================
 FALL_DECAY_FACTOR = 0.85        # exponential decay for lost keypoints
-FALL_STAGGER_DELAY = 0.3        # seconds stagger per camera at startup
-FALL_RECONNECT_DELAY = 0.3      # seconds between reconnect attempts
+FALL_STAGGER_DELAY = 0.1        # seconds stagger per camera at startup (0.3→0.1)
+FALL_RECONNECT_DELAY = 0.2      # seconds between reconnect attempts (0.3→0.2)
 FALL_FD_CONF_THRESHOLD = 0.3    # fall detection model confidence threshold
 FALL_FD_IMGSZ = 320             # fall detection model input size
 
