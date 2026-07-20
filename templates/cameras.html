@@ -637,7 +637,10 @@ function openROIConfig(camId) {
         <div style="background:#111922;border:1px solid #1e2d3d;border-radius:12px;padding:24px;max-width:700px;width:90%;">
             <h3 style="color:#4fc3f7;margin-bottom:16px;">配置行走区域 (ROI) - 摄像头 ${camId + 1}</h3>
             <p style="color:#5a7a8a;font-size:13px;margin-bottom:12px;">点击画面添加顶点，至少3个点形成闭合区域。只有在此区域内的物体才会触发告警。</p>
-            <canvas id="roiCanvas" width="640" height="480" style="width:100%;background:#000;border:1px solid #1e2d3d;cursor:crosshair;"></canvas>
+            <div style="position:relative;width:100%;aspect-ratio:4/3;background:#000;border:1px solid #1e2d3d;">
+                <img id="roiVideo" src="/video_feed/${camId}" style="width:100%;height:100%;object-fit:contain;display:block;" />
+                <canvas id="roiCanvas" width="640" height="480" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair;"></canvas>
+            </div>
             <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
                 <button onclick="clearROI()" style="padding:8px 16px;background:transparent;color:#f44336;border:1px solid #f44336;border-radius:6px;cursor:pointer;">清除</button>
                 <button onclick="closeROIConfig()" style="padding:8px 16px;background:transparent;color:#c8d8e0;border:1px solid #1e2d3d;border-radius:6px;cursor:pointer;">取消</button>
@@ -683,16 +686,8 @@ function drawROI() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw camera feed placeholder
-    ctx.fillStyle = '#1a2332';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#5a7a8a';
-    ctx.font = '14px Microsoft YaHei';
-    ctx.textAlign = 'center';
-    ctx.fillText('摄像头画面预览', canvas.width/2, canvas.height/2);
-
     if (roiPoints.length < 3) {
-        // Draw points
+        // Draw points only
         roiPoints.forEach((p, i) => {
             const px = p[0] * canvas.width;
             const py = p[1] * canvas.height;

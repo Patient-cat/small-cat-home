@@ -688,11 +688,13 @@ def detect_ground_hazards(frame):
     if model_ground is None:
         return []
 
-    results = model_ground(frame, conf=0.5, verbose=False)
+    results = model_ground(frame, conf=0.25, verbose=False)
     hazards = []
 
-    # COCO classes: 24=backpack, 39=bottle, 41=cup, 73=book
-    target_classes = [24, 39, 41, 73]
+    # COCO classes for potential ground hazards:
+    # 24=backpack, 25=umbrella, 26=handbag, 28=suitcase, 39=bottle,
+    # 41=cup, 45=knife, 46=fork, 47=spoon, 73=book, 76=scissors
+    target_classes = [24, 25, 26, 28, 39, 41, 45, 46, 47, 73, 76]
 
     for box in results[0].boxes:
         cls = int(box.cls[0])
@@ -765,15 +767,27 @@ def ground_hazard_worker(cam_id):
     """Worker thread for ground hazard detection."""
     frame_count = 0
     hazard_cooldown = {}
+    last_frame = None
 
     while alive.is_set():
         if not camera_enabled.get(cam_id, False):
             time.sleep(1)
             continue
 
+        # Read frame without consuming (peek from queue, or use cached frame)
+        fq = frame_queues.get(cam_id)
+        if fq is None:
+            time.sleep(0.5)
+            continue
+
+        # Get latest frame non-destructively
         try:
-            frame = frame_queues[cam_id].get(timeout=1)
+            frame = fq.get(timeout=0.5)
+            last_frame = frame
         except queue.Empty:
+            frame = last_frame
+
+        if frame is None:
             continue
 
         frame_count += 1
