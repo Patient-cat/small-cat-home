@@ -93,6 +93,14 @@ if os.path.isfile(_fd_path):
     model_fd = YOLO(_fd_path)
     log.info('Fall detect model: loaded')
 
+# Ground hazard detection model (lightweight YOLOv8n)
+model_ground = None
+try:
+    model_ground = YOLO('yolov8n.pt')
+    log.info('Ground hazard detection model loaded')
+except Exception as e:
+    log.warning('Ground hazard model not loaded: %s', e)
+
 # Camera config — persisted to cameras.json, editable via /cameras page
 CAMERA_CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'cameras.json')
 
@@ -673,6 +681,155 @@ def broadcast_alert(event_data):
 
 
 # ============================================================
+# Ground Hazard Detection
+# ============================================================
+def detect_ground_hazards(frame):
+    """Detect ground-level objects that could cause falls."""
+    if model_ground is None:
+        return []
+
+    results = model_ground(frame, conf=0.5, verbose=False)
+    hazards = []
+
+    # COCO classes: 24=backpack, 39=bottle, 41=cup, 73=book
+    target_classes = [24, 39, 41, 73]
+
+    for box in results[0].boxes:
+        cls = int(box.cls[0])
+        conf = float(box.conf[0])
+        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+
+        if cls in target_classes:
+            hazards.append({
+                'cls': cls,
+                'name': results[0].names[cls],
+                'bbox': (x1, y1, x2, y2),
+                'conf': conf,
+                'center': ((x1+x2)//2, (y1+y2)//2)
+            })
+    return hazards
+
+
+def check_person_nearby(hazard_center, tracks, threshold=200):
+    """Check if any tracked person is near a hazard."""
+    for tid, t in tracks.items():
+        bx1, by1, bx2, by2 = t['bbox']
+        person_center = ((bx1+bx2)//2, (by1+by2)//2)
+
+        dist = ((hazard_center[0] - person_center[0])**2 +
+                (hazard_center[1] - person_center[1])**2)**0.5
+
+        if dist < threshold:
+            return True, t.get('name', '陌生人')
+    return False, None
+
+
+def is_in_roi(bbox, roi_polygon):
+    """Check if object is within the walking region ROI."""
+    if not roi_polygon:
+        return True  # No ROI configured = everything is in region
+
+    cx, cy = (bbox[0]+bbox[2])//2, (bbox[1]+bbox[3])//2
+
+    # Point-in-polygon test
+    n = len(roi_polygon)
+    inside = False
+    j = n - 1
+    for i in range(n):
+        xi, yi = roi_polygon[i]
+        xj, yj = roi_polygon[j]
+        if ((yi > cy) != (yj > cy)) and (cx < (xj - xi) * (cy - yi) / (yj - yi) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def get_camera_roi(cam_id):
+    """Get walking region ROI for a camera."""
+    for c in CAMERAS:
+        if c['id'] == cam_id:
+            return c.get('walk_roi', [])
+    return []
+
+
+def set_camera_roi(cam_id, roi):
+    """Set walking region ROI for a camera."""
+    for c in CAMERAS:
+        if c['id'] == cam_id:
+            c['walk_roi'] = roi
+            break
+    _save_camera_config(CAMERAS, camera_names)
+
+
+def ground_hazard_worker(cam_id):
+    """Worker thread for ground hazard detection."""
+    frame_count = 0
+    hazard_cooldown = {}
+
+    while alive.is_set():
+        if not camera_enabled.get(cam_id, False):
+            time.sleep(1)
+            continue
+
+        try:
+            frame = frame_queues[cam_id].get(timeout=1)
+        except queue.Empty:
+            continue
+
+        frame_count += 1
+
+        # Run every 30 frames (~1 second)
+        if frame_count % 30 == 0:
+            hazards = detect_ground_hazards(frame)
+
+            # Get current tracked persons
+            with detection_locks[cam_id]:
+                tracks = latest_detections[cam_id].get('tracks', {})
+
+            # Get ROI configuration
+            roi = get_camera_roi(cam_id)
+
+            for hazard in hazards:
+                # Check if in ROI
+                if not is_in_roi(hazard['bbox'], roi):
+                    continue
+
+                # Check if person is nearby
+                nearby, person_name = check_person_nearby(
+                    hazard['center'], tracks, threshold=200
+                )
+
+                if nearby:
+                    # Check cooldown (prevent repeated alerts)
+                    hazard_key = f"{cam_id}_{hazard['name']}"
+                    now = time.time()
+                    if hazard_key in hazard_cooldown:
+                        if now - hazard_cooldown[hazard_key] < 30:
+                            continue
+
+                    # Broadcast alert
+                    broadcast_alert({
+                        'type': 'yellow',
+                        'level': 1,
+                        'message': f'地面障碍物：{hazard["name"]}，请注意避让',
+                        'hazard_type': hazard['name'],
+                        'person_nearby': person_name,
+                        'cam_id': cam_id,
+                        'bbox': list(hazard['bbox'])
+                    })
+
+                    hazard_cooldown[hazard_key] = now
+                    log.warning('Ground hazard: %s near %s (cam %d)',
+                               hazard['name'], person_name, cam_id)
+
+            # Update latest_detections for drawing
+            with detection_locks[cam_id]:
+                latest_detections[cam_id]['ground_hazards'] = hazards
+
+        time.sleep(0.03)
+
+
+# ============================================================
 # AI Analysis
 # ============================================================
 AI_PROMPT = """分析这张老年人跌倒图片，输出以下内容（用中文）：
@@ -1092,6 +1249,16 @@ def generate_frames(cam_id, show_overlay=True):
                 cv2.rectangle(frame, (x1, y1), (x2, y2), c, 2)
                 cv2.putText(frame, label, (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, c, 2)
 
+            # Draw ground hazard detections
+            ground_hazards = ld.get('ground_hazards', [])
+            for hazard in ground_hazards:
+                x1, y1, x2, y2 = hazard['bbox']
+                color = (0, 165, 255)  # Orange
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                label = f"{hazard['name']} {hazard['conf']:.2f}"
+                cv2.putText(frame, label, (x1, y1 - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
             # HUD
             fps = current_fps_list.get(cam_id, 0)
             pers = person_count_list.get(cam_id, 0)
@@ -1463,9 +1630,16 @@ def _init_camera_pipeline(cam_id):
     person_count_list[cam_id] = 0
     last_p_fall_list[cam_id] = 0
     camera_enabled[cam_id] = False
+
+    # Start detection worker thread
     t = threading.Thread(target=detection_worker, args=(cam_id,), daemon=True,
                          name=f'detection-{cam_id}')
     t.start()
+
+    # Start ground hazard detection thread
+    t_ground = threading.Thread(target=ground_hazard_worker, args=(cam_id,),
+                                daemon=True, name=f'ground-{cam_id}')
+    t_ground.start()
 
 
 @app.route('/api/cameras/scan-usb', methods=['POST'])
@@ -1737,6 +1911,20 @@ def api_cameras():
             camera_names.pop(str(cam_id), None)
         _save_camera_config(CAMERAS, camera_names)
         return jsonify({'ok': True, 'message': f'摄像头 {cam_id} 已删除，重启后生效'})
+
+
+@app.route('/api/cameras/<int:cam_id>/roi', methods=['GET', 'POST'])
+@login_required
+def api_camera_roi(cam_id):
+    """Get or set walking region ROI for a camera."""
+    if request.method == 'GET':
+        roi = get_camera_roi(cam_id)
+        return jsonify({'ok': True, 'roi': roi})
+    else:
+        data = request.get_json()
+        roi = data.get('roi', [])
+        set_camera_roi(cam_id, roi)
+        return jsonify({'ok': True})
 
 
 @app.route('/events')

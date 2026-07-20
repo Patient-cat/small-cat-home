@@ -211,7 +211,10 @@ async function loadList() {
                 <div class="name">${esc(c.name)} <span class="${badgeStyle}">${statusText}</span></div>
                 <div class="src">${c.source}</div>
             </div>
-            ${cams.length>1?`<button class="btn-delete" onclick="event.stopPropagation();deleteCam(${c.id})">删除</button>`:''}
+            <div style="display:flex;gap:8px;">
+                <button class="btn-roi" onclick="event.stopPropagation();openROIConfig(${c.id})" style="padding:5px 12px;font-size:12px;border:1px solid #4fc3f7;background:transparent;color:#4fc3f7;border-radius:12px;cursor:pointer;">配置区域</button>
+                ${cams.length>1?`<button class="btn-delete" onclick="event.stopPropagation();deleteCam(${c.id})">删除</button>`:''}
+            </div>
         </div>`;
     }).join('');
     document.getElementById('addSource').value = cams.length;
@@ -611,6 +614,160 @@ function showToast(text, type) {
     const t = document.getElementById('toast');
     t.textContent = text; t.className = 'toast '+type; t.style.display = 'block';
     setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ============================================================
+// ROI (Walking Region) Configuration
+// ============================================================
+let roiPoints = [];
+let isDrawingROI = false;
+let currentROICamId = null;
+
+function openROIConfig(camId) {
+    currentROICamId = camId;
+    roiPoints = [];
+    isDrawingROI = true;
+
+    // Create ROI config modal
+    const modal = document.createElement('div');
+    modal.id = 'roiModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;display:flex;align-items:center;justify-content:center;';
+
+    modal.innerHTML = `
+        <div style="background:#111922;border:1px solid #1e2d3d;border-radius:12px;padding:24px;max-width:700px;width:90%;">
+            <h3 style="color:#4fc3f7;margin-bottom:16px;">配置行走区域 (ROI) - 摄像头 ${camId + 1}</h3>
+            <p style="color:#5a7a8a;font-size:13px;margin-bottom:12px;">点击画面添加顶点，至少3个点形成闭合区域。只有在此区域内的物体才会触发告警。</p>
+            <canvas id="roiCanvas" width="640" height="480" style="width:100%;background:#000;border:1px solid #1e2d3d;cursor:crosshair;"></canvas>
+            <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+                <button onclick="clearROI()" style="padding:8px 16px;background:transparent;color:#f44336;border:1px solid #f44336;border-radius:6px;cursor:pointer;">清除</button>
+                <button onclick="closeROIConfig()" style="padding:8px 16px;background:transparent;color:#c8d8e0;border:1px solid #1e2d3d;border-radius:6px;cursor:pointer;">取消</button>
+                <button onclick="saveROI()" style="padding:8px 16px;background:#4caf50;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">保存</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Load existing ROI
+    loadExistingROI(camId);
+
+    // Setup canvas click handler
+    const canvas = document.getElementById('roiCanvas');
+    canvas.addEventListener('click', function(e) {
+        if (!isDrawingROI) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / canvas.width;
+        const y = (e.clientY - rect.top) / canvas.height;
+
+        roiPoints.push([x, y]);
+        drawROI();
+    });
+}
+
+async function loadExistingROI(camId) {
+    try {
+        const resp = await fetch(`/api/cameras/${camId}/roi`);
+        const data = await resp.json();
+        if (data.ok && data.roi && data.roi.length > 0) {
+            roiPoints = data.roi;
+            drawROI();
+        }
+    } catch(e) {}
+}
+
+function drawROI() {
+    const canvas = document.getElementById('roiCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw camera feed placeholder
+    ctx.fillStyle = '#1a2332';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#5a7a8a';
+    ctx.font = '14px Microsoft YaHei';
+    ctx.textAlign = 'center';
+    ctx.fillText('摄像头画面预览', canvas.width/2, canvas.height/2);
+
+    if (roiPoints.length < 3) {
+        // Draw points
+        roiPoints.forEach((p, i) => {
+            const px = p[0] * canvas.width;
+            const py = p[1] * canvas.height;
+            ctx.beginPath();
+            ctx.arc(px, py, 5, 0, Math.PI * 2);
+            ctx.fillStyle = '#00d4aa';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        });
+        return;
+    }
+
+    // Draw polygon
+    ctx.beginPath();
+    ctx.moveTo(roiPoints[0][0] * canvas.width, roiPoints[0][1] * canvas.height);
+    for (let i = 1; i < roiPoints.length; i++) {
+        ctx.lineTo(roiPoints[i][0] * canvas.width, roiPoints[i][1] * canvas.height);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = '#00d4aa';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(0, 212, 170, 0.15)';
+    ctx.fill();
+
+    // Draw points
+    roiPoints.forEach((p, i) => {
+        const px = p[0] * canvas.width;
+        const py = p[1] * canvas.height;
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#00d4aa';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+}
+
+function clearROI() {
+    roiPoints = [];
+    drawROI();
+}
+
+function closeROIConfig() {
+    isDrawingROI = false;
+    currentROICamId = null;
+    const modal = document.getElementById('roiModal');
+    if (modal) modal.remove();
+}
+
+async function saveROI() {
+    if (roiPoints.length < 3) {
+        showToast('至少需要3个点形成闭合区域', 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/cameras/${currentROICamId}/roi`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({roi: roiPoints})
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            showToast('行走区域保存成功', 'success');
+            closeROIConfig();
+        } else {
+            showToast('保存失败', 'error');
+        }
+    } catch(e) {
+        showToast('保存失败: ' + e.message, 'error');
+    }
 }
 
 loadList();

@@ -664,6 +664,32 @@ function showWarning(data) {
   setTimeout(function () { el.classList.remove('warn'); }, 3000);
 }
 
+function showHazardAlert(data) {
+  // Create hazard alert notification
+  var alertDiv = document.createElement('div');
+  alertDiv.className = 'hazard-alert';
+  alertDiv.style.cssText = 'position:fixed;top:80px;right:20px;z-index:1000;background:rgba(17,24,32,0.95);border:1px solid #f59e0b;border-radius:12px;padding:16px 20px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.4);animation:slideIn 0.3s ease;max-width:350px;';
+
+  alertDiv.innerHTML = '<div style="display:flex;align-items:center;gap:12px;">' +
+    '<div style="font-size:24px;">⚠️</div>' +
+    '<div>' +
+    '<div style="font-weight:600;color:#f59e0b;margin-bottom:4px;">地面障碍物</div>' +
+    '<div style="font-size:13px;color:#c8d2dc;">' + (data.message || '') + '</div>' +
+    '<div style="font-size:11px;color:#60738a;margin-top:4px;">摄像头 ' + ((data.cam_id || 0) + 1) +
+    (data.person_nearby ? ' · ' + data.person_nearby + ' 在附近' : '') + '</div>' +
+    '</div></div>';
+
+  document.body.appendChild(alertDiv);
+
+  // Auto-remove after 5 seconds
+  setTimeout(function() {
+    alertDiv.style.opacity = '0';
+    alertDiv.style.transform = 'translateX(100px)';
+    alertDiv.style.transition = 'all 0.3s ease';
+    setTimeout(function() { alertDiv.remove(); }, 300);
+  }, 5000);
+}
+
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape' || e.key === 'Enter') dismissFall();
 });
@@ -678,7 +704,13 @@ function connectSSE() {
     try {
       var d = JSON.parse(e.data);
       if (d.type === 'red' || d.type === 'fall' || d.level === 2) showFallOverlay(d);
-      else if (d.type === 'yellow' || d.type === 'warning' || d.level === 1) showWarning(d);
+      else if (d.type === 'yellow' || d.type === 'warning' || d.level === 1) {
+        if (d.hazard_type) {
+          showHazardAlert(d);
+        } else {
+          showWarning(d);
+        }
+      }
     } catch (_) {}
   };
   es.onerror = function () { es.close(); setTimeout(connectSSE, 3000); };
