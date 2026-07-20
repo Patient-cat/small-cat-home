@@ -32,11 +32,11 @@ def detect_ground_hazards(frame, model_ground):
 
         if cls in target_classes:
             hazards.append({
-                'cls': cls,
+                'cls': int(cls),
                 'name': results[0].names[cls],
-                'bbox': (x1, y1, x2, y2),
-                'conf': conf,
-                'center': ((x1 + x2) // 2, (y1 + y2) // 2),
+                'bbox': (int(x1), int(y1), int(x2), int(y2)),
+                'conf': float(conf),
+                'center': (int((x1 + x2) // 2), int((y1 + y2) // 2)),
             })
     return hazards
 
