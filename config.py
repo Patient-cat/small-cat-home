@@ -103,6 +103,32 @@ SERVER_PORT = 5001
 DEBUG = False
 
 # ============================================================
+# Ground Hazard Detection
+# ============================================================
+GROUND_HAZARD_INTERVAL = 30     # run detection every N frames
+GROUND_HAZARD_CONF = 0.25       # confidence threshold for object detection
+GROUND_HAZARD_PROXIMITY = 200   # pixels threshold for person proximity
+GROUND_HAZARD_COOLDOWN = 30     # seconds between repeated alerts
+GROUND_HAZARD_TARGET_CLASSES = [24, 25, 26, 28, 39, 41, 45, 46, 47, 73, 76]
+# COCO classes: backpack, umbrella, handbag, suitcase, bottle, cup,
+#               knife, fork, spoon, book, scissors
+
+# ============================================================
+# Fall Detection Tuning
+# ============================================================
+FALL_DECAY_FACTOR = 0.85        # exponential decay for lost keypoints
+FALL_STAGGER_DELAY = 0.3        # seconds stagger per camera at startup
+FALL_RECONNECT_DELAY = 0.3      # seconds between reconnect attempts
+FALL_FD_CONF_THRESHOLD = 0.3    # fall detection model confidence threshold
+FALL_FD_IMGSZ = 320             # fall detection model input size
+
+# ============================================================
+# AI Analysis
+# ============================================================
+AI_MAX_TOKENS = 800
+AI_TEMPERATURE = 0.3
+
+# ============================================================
 # Logging
 # ============================================================
 LOG_DIR = os.path.join(BASE_DIR, 'logs')

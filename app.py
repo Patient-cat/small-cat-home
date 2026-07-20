@@ -130,8 +130,8 @@ def _load_camera_config():
                 data = json.load(f)
                 cameras = data.get('cameras', [])
                 names = data.get('names', {})
-        except Exception:
-            pass
+        except (json.JSONDecodeError, IOError) as e:
+            log.warning('Failed to load camera config: %s', e)
 
     # Deduplicate: remove cameras with same source, keep first one with a name
     seen_sources = {}
@@ -676,8 +676,8 @@ def broadcast_alert(event_data):
         pass
     try:
         socketio.emit('alert', event_data)
-    except Exception:
-        pass
+    except (IOError, RuntimeError) as e:
+        log.debug('WebSocket emit failed: %s', e)
 
 
 # ============================================================
@@ -688,13 +688,10 @@ def detect_ground_hazards(frame):
     if model_ground is None:
         return []
 
-    results = model_ground(frame, conf=0.25, verbose=False)
+    results = model_ground(frame, conf=cfg.GROUND_HAZARD_CONF, verbose=False)
     hazards = []
 
-    # COCO classes for potential ground hazards:
-    # 24=backpack, 25=umbrella, 26=handbag, 28=suitcase, 39=bottle,
-    # 41=cup, 45=knife, 46=fork, 47=spoon, 73=book, 76=scissors
-    target_classes = [24, 25, 26, 28, 39, 41, 45, 46, 47, 73, 76]
+    target_classes = cfg.GROUND_HAZARD_TARGET_CLASSES
 
     for box in results[0].boxes:
         cls = int(box.cls[0])
@@ -712,8 +709,11 @@ def detect_ground_hazards(frame):
     return hazards
 
 
-def check_person_nearby(hazard_center, tracks, threshold=200):
+def check_person_nearby(hazard_center, tracks, threshold=None):
     """Check if any tracked person is near a hazard."""
+    if threshold is None:
+        threshold = cfg.GROUND_HAZARD_PROXIMITY
+
     for tid, t in tracks.items():
         bx1, by1, bx2, by2 = t['bbox']
         person_center = ((bx1+bx2)//2, (by1+by2)//2)
@@ -792,8 +792,8 @@ def ground_hazard_worker(cam_id):
 
         frame_count += 1
 
-        # Run every 30 frames (~1 second)
-        if frame_count % 30 == 0:
+        # Run detection at configured interval
+        if frame_count % cfg.GROUND_HAZARD_INTERVAL == 0:
             hazards = detect_ground_hazards(frame)
 
             # Get current tracked persons
@@ -818,7 +818,7 @@ def ground_hazard_worker(cam_id):
                     hazard_key = f"{cam_id}_{hazard['name']}"
                     now = time.time()
                     if hazard_key in hazard_cooldown:
-                        if now - hazard_cooldown[hazard_key] < 30:
+                        if now - hazard_cooldown[hazard_key] < cfg.GROUND_HAZARD_COOLDOWN:
                             continue
 
                     # Broadcast alert
@@ -886,7 +886,7 @@ def analyze_fall_image(screenshot_path, event_id):
             endpoint = cfg.get_endpoint()
         else:
             payload = {'model': cfg.AI_MODEL, 'messages': [{'role': 'user', 'content': text_prompt}],
-                       'max_tokens': 800, 'temperature': 0.3}
+                       'max_tokens': cfg.AI_MAX_TOKENS, 'temperature': cfg.AI_TEMPERATURE}
             headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {cfg.AI_API_KEY}'}
             endpoint = cfg.get_endpoint()
 
@@ -965,7 +965,7 @@ def detection_worker(cam_id):
         # Fall detection model — run less often to save CPU
         # Handles both detection models (boxes) and classification models (probs)
         if model_fd is not None and det_frame_count % 15 == 0:
-            fd_res = model_fd(frame, imgsz=320, conf=0.5, verbose=False, device=DEVICE)[0]
+            fd_res = model_fd(frame, imgsz=cfg.FALL_FD_IMGSZ, conf=cfg.FALL_FD_CONF_THRESHOLD, verbose=False, device=DEVICE)[0]
             fd_boxes = []
             fd_cls_conf = 0.0  # classification confidence for fall class
 
@@ -983,7 +983,7 @@ def detection_worker(cam_id):
                 fd_cls_conf = float(probs.top1conf) if probs.top1 == fall_idx else 1.0 - float(probs.top1conf)
                 # Pseudo-box: full frame, so IoU matching still works
                 h, w = frame.shape[:2]
-                if fd_cls_conf > 0.3:
+                if fd_cls_conf > cfg.FALL_FD_CONF_THRESHOLD:
                     fd_boxes.append({'bbox': (0, 0, w, h), 'is_fall': True, 'conf': fd_cls_conf})
 
             if fd_boxes or not ld.get('fd_boxes'):
@@ -1046,7 +1046,7 @@ def detection_worker(cam_id):
                 if info is None:
                     # Keypoints lost (partial occlusion) — exponential decay of last P_FALL
                     prev = t.get('last_p_fall', 0.0)
-                    p_fall_val = prev * 0.85
+                    p_fall_val = prev * cfg.FALL_DECAY_FACTOR
                     t['last_p_fall'] = p_fall_val
                     t['ground_contact_frames'] = max(0, t.get('ground_contact_frames', 0) - 1)
                 else:
@@ -1124,7 +1124,7 @@ def open_camera(source):
 def open_rtsp_camera(source, cam_id):
     """Open RTSP camera with timeout and staggered delay."""
     import time as _time
-    _time.sleep(cam_id * 0.3)  # 0.3s stagger per camera
+    _time.sleep(cam_id * cfg.FALL_STAGGER_DELAY)
     # Set RTSP timeout via env var (5 seconds)
     os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp|timeout;5000000'
     cap = cv2.VideoCapture(source, cv2.CAP_FFMPEG)
@@ -1135,8 +1135,8 @@ def open_rtsp_camera(source, cam_id):
                       (cv2.CAP_PROP_READ_TIMEOUT_MSEC, 3000)]:
         try:
             cap.set(prop, val)
-        except Exception:
-            pass
+        except cv2.error:
+            pass  # Property not supported by this OpenCV build
     if not cap.isOpened():
         log.warning('RTSP camera %d failed to open: %s', cam_id, source)
         cap.release()
@@ -1195,7 +1195,7 @@ def generate_frames(cam_id, show_overlay=True):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 120, 140), 1)
             _, buf = cv2.imencode('.jpg', blank, [cv2.IMWRITE_JPEG_QUALITY, 30])
             yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buf.tobytes() + b'\r\n')
-            time.sleep(0.3); continue
+            time.sleep(cfg.FALL_RECONNECT_DELAY); continue
         fail_count = 0
 
         # Downscale 4K to 1080p for faster encoding + sharper browser rendering
@@ -1748,7 +1748,8 @@ def api_cameras_scan():
                             })
                             if first_rtsp is None:
                                 first_rtsp = url
-                        except Exception:
+                        except (IOError, RuntimeError) as e:
+                            log.debug('ONVIF stream URI failed for %s: %s', ip, e)
                             continue
 
                     suggested = len(channels) if nvr and len(channels) > 1 else (4 if nvr else 1)
@@ -1762,7 +1763,8 @@ def api_cameras_scan():
                         'channels': channels,
                     })
                     break
-                except Exception:
+                except (IOError, RuntimeError, OSError) as e:
+                    log.debug('ONVIF connection failed for %s with %s/%s: %s', ip, user, pwd, e)
                     continue
 
             if not found_cred:
