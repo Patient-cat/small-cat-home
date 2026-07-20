@@ -361,18 +361,9 @@ def ground_hazard_worker(cam_id):
 
             hazards = process_ground_hazards(
                 frame, model_ground, tracks, cam_id,
-                _get_camera_roi, broadcast_alert, hazard_cooldown)
+                broadcast_alert, hazard_cooldown)
 
             with detection_locks[cam_id]:
                 latest_detections[cam_id]['ground_hazards'] = hazards
 
         time.sleep(0.03)
-
-
-def _get_camera_roi(cam_id):
-    """Get walking region ROI for a camera."""
-    from core.state import CAMERAS
-    for c in CAMERAS:
-        if c['id'] == cam_id:
-            return c.get('walk_roi', [])
-    return []

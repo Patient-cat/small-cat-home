@@ -118,7 +118,8 @@ DEBUG = False
 # ============================================================
 GROUND_HAZARD_INTERVAL = 30     # run detection every N frames
 GROUND_HAZARD_CONF = 0.25       # confidence threshold for object detection
-GROUND_HAZARD_PROXIMITY = 200   # pixels threshold for person proximity
+GROUND_HAZARD_CLOSE = 120       # pixels — very close, orange alert
+GROUND_HAZARD_NEAR = 250        # pixels — nearby, yellow alert
 GROUND_HAZARD_COOLDOWN = 30     # seconds between repeated alerts
 GROUND_HAZARD_TARGET_CLASSES = [24, 25, 26, 28, 39, 41, 45, 46, 47, 73, 76]
 # COCO classes: backpack, umbrella, handbag, suitcase, bottle, cup,
