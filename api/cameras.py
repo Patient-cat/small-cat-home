@@ -12,7 +12,7 @@ cameras_bp = Blueprint('cameras', __name__)
 @login_required
 def api_cameras_list():
     """List all cameras."""
-    from app import CAMERAS, camera_names, camera_enabled, current_fps_list
+    from core.state import CAMERAS, camera_names, camera_enabled, current_fps_list
     return jsonify([{
         'id': c['id'], 'source': c['source'],
         'name': camera_names.get(str(c['id']), f'摄像头{c["id"]+1}'),
@@ -25,8 +25,9 @@ def api_cameras_list():
 @login_required
 def api_cameras_add():
     """Add a camera (single or batch)."""
-    from app import CAMERAS, camera_names, _save_camera_config, _init_camera_pipeline
-    from models.database import config_lock
+    from core.state import CAMERAS, camera_names
+    from core.cam_config import _save_camera_config, _init_camera_pipeline
+    from core.state import config_lock
 
     data = request.get_json(force=True) or {}
 
@@ -72,8 +73,9 @@ def api_cameras_add():
 @login_required
 def api_cameras_delete():
     """Delete a camera by ID."""
-    from app import CAMERAS, camera_names, _save_camera_config
-    from models.database import config_lock
+    from core.state import CAMERAS, camera_names
+    from core.cam_config import _save_camera_config
+    from core.state import config_lock
 
     cam_id = request.args.get('id', type=int)
     if cam_id is None:
@@ -92,7 +94,7 @@ def api_cameras_delete():
 @login_required
 def api_toggle_camera(cam_id):
     """Toggle camera on/off."""
-    from app import camera_enabled
+    from core.state import camera_enabled
     if cam_id not in camera_enabled:
         return jsonify({'ok': False, 'error': '摄像头不存在'}), 404
     camera_enabled[cam_id] = not camera_enabled[cam_id]
@@ -103,7 +105,7 @@ def api_toggle_camera(cam_id):
 @login_required
 def api_disable_all_cameras():
     """Disable all cameras."""
-    from app import camera_enabled
+    from core.state import camera_enabled
     count = sum(1 for v in camera_enabled.values() if v)
     for cid in camera_enabled:
         camera_enabled[cid] = False
@@ -114,7 +116,8 @@ def api_disable_all_cameras():
 @login_required
 def api_rename_camera(cam_id):
     """Rename a camera."""
-    from app import camera_names, CAMERAS, _save_camera_config
+    from core.state import CAMERAS, camera_names
+    from core.cam_config import _save_camera_config
     data = request.get_json(force=True) or {}
     name = (data.get('name') or '').strip()
     if not name:
@@ -128,7 +131,8 @@ def api_rename_camera(cam_id):
 @login_required
 def api_camera_roi(cam_id):
     """Get or set walking region ROI for a camera."""
-    from app import CAMERAS, _save_camera_config
+    from core.state import CAMERAS
+    from core.cam_config import _save_camera_config
 
     if request.method == 'GET':
         roi = next((c.get('walk_roi', []) for c in CAMERAS if c['id'] == cam_id), [])
@@ -148,8 +152,9 @@ def api_camera_roi(cam_id):
 @login_required
 def api_cameras_scan_usb():
     """Scan for available USB/built-in cameras and auto-add them."""
-    from app import CAMERAS, camera_names, _scan_usb_cameras, _save_camera_config, _init_camera_pipeline
-    from models.database import config_lock
+    from core.state import CAMERAS, camera_names
+    from core.cam_config import _save_camera_config, _init_camera_pipeline, _scan_usb_cameras
+    from core.state import config_lock
 
     usb_indices = _scan_usb_cameras(max_index=5)
     existing_sources = {c['source'] for c in CAMERAS if isinstance(c['source'], int)}

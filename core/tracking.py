@@ -19,7 +19,7 @@ def _iou(boxA, boxB):
 
 def _get_tracker_state(cam_key):
     """Return (next_id, tracks_dict) for a camera."""
-    from app import tracker_states
+    from core.state import tracker_states
     if cam_key not in tracker_states:
         tracker_states[cam_key] = {'next_id': 0, 'tracks': {}}
     return tracker_states[cam_key]

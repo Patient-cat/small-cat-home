@@ -40,7 +40,7 @@ def broadcast_alert(event_data):
         pass
     # SocketIO emit handled by app's socketio instance — imported lazily
     try:
-        from app import socketio
+        from core.state import socketio
         socketio.emit('alert', event_data)
     except Exception as e:
         log.debug('SocketIO emit failed: %s', e)

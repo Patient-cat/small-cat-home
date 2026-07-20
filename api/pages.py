@@ -29,7 +29,7 @@ def register():
     if request.method == 'GET':
         return render_template('register.html')
 
-    from app import face_app
+    from core.state import face_app
     if face_app is None:
         return jsonify({'ok': False, 'error': 'InsightFace 未加载'}), 500
 

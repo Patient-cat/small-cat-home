@@ -17,7 +17,7 @@ def extract_face_embedding(img_bgr):
     Returns:
         (embedding: np.ndarray | None, det_score: float)
     """
-    from app import face_app
+    from core.state import face_app
     if face_app is None:
         return None, 0.0
 
