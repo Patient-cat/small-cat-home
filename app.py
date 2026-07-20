@@ -1339,10 +1339,9 @@ def api_login():
     password = (data.get('password') or '')
     if not username or not password:
         return jsonify({'ok': False, 'error': '请输入用户名和密码'}), 400
-    conn = get_db()
-    row = conn.execute('SELECT id, username, password_hash, role, is_active FROM users WHERE username = ?',
-                       (username,)).fetchone()
-    conn.close()
+    with db_connection() as conn:
+        row = conn.execute('SELECT id, username, password_hash, role, is_active FROM users WHERE username = ?',
+                           (username,)).fetchone()
     if not row or not check_password_hash(row['password_hash'], password):
         log.warning('Failed login attempt for "%s"', username)
         return jsonify({'ok': False, 'error': '用户名或密码错误'}), 401
@@ -1396,17 +1395,15 @@ def api_register():
     if len(password) < 6:
         return jsonify({'ok': False, 'error': '密码长度不能少于6位'}), 400
     from werkzeug.security import generate_password_hash as _gh
-    conn = get_db()
-    try:
-        conn.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
-                     (username, _gh(password)))
-        conn.commit()
-        log.info('New user registered: %s', username)
-        return jsonify({'ok': True, 'message': '注册成功，请登录'})
-    except sqlite3.IntegrityError:
-        return jsonify({'ok': False, 'error': '用户名已存在'}), 409
-    finally:
-        conn.close()
+    with db_connection() as conn:
+        try:
+            conn.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
+                         (username, _gh(password)))
+            conn.commit()
+            log.info('New user registered: %s', username)
+            return jsonify({'ok': True, 'message': '注册成功，请登录'})
+        except sqlite3.IntegrityError:
+            return jsonify({'ok': False, 'error': '用户名已存在'}), 409
 
 
 @app.route('/users')
@@ -1423,9 +1420,8 @@ def users_page():
 def api_users():
     """List all users."""
     from flask import session
-    conn = get_db()
-    rows = conn.execute('SELECT id, username, role, is_active, created_at FROM users ORDER BY id').fetchall()
-    conn.close()
+    with db_connection() as conn:
+        rows = conn.execute('SELECT id, username, role, is_active, created_at FROM users ORDER BY id').fetchall()
     users = [{'id': r['id'], 'username': r['username'], 'role': r['role'],
               'is_active': bool(r['is_active']), 'created_at': r['created_at']} for r in rows]
     return jsonify({'ok': True, 'users': users,
@@ -1440,14 +1436,12 @@ def api_delete_user(uid):
     from flask import session
     if uid == session.get('user_id'):
         return jsonify({'ok': False, 'error': '不能删除自己'}), 400
-    conn = get_db()
-    row = conn.execute('SELECT role FROM users WHERE id = ?', (uid,)).fetchone()
-    if not row:
-        conn.close()
-        return jsonify({'ok': False, 'error': '用户不存在'}), 404
-    conn.execute('DELETE FROM users WHERE id = ?', (uid,))
-    conn.commit()
-    conn.close()
+    with db_connection() as conn:
+        row = conn.execute('SELECT role FROM users WHERE id = ?', (uid,)).fetchone()
+        if not row:
+            return jsonify({'ok': False, 'error': '用户不存在'}), 404
+        conn.execute('DELETE FROM users WHERE id = ?', (uid,))
+        conn.commit()
     log.info('Admin "%s" deleted user id=%d', session.get('username'), uid)
     return jsonify({'ok': True, 'message': '用户已删除'})
 
@@ -1460,15 +1454,13 @@ def api_toggle_user(uid):
     from flask import session
     if uid == session.get('user_id'):
         return jsonify({'ok': False, 'error': '不能禁用自己'}), 400
-    conn = get_db()
-    row = conn.execute('SELECT id, is_active FROM users WHERE id = ?', (uid,)).fetchone()
-    if not row:
-        conn.close()
-        return jsonify({'ok': False, 'error': '用户不存在'}), 404
-    new_val = 0 if row['is_active'] else 1
-    conn.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_val, uid))
-    conn.commit()
-    conn.close()
+    with db_connection() as conn:
+        row = conn.execute('SELECT id, is_active FROM users WHERE id = ?', (uid,)).fetchone()
+        if not row:
+            return jsonify({'ok': False, 'error': '用户不存在'}), 404
+        new_val = 0 if row['is_active'] else 1
+        conn.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_val, uid))
+        conn.commit()
     action = '禁用' if new_val == 0 else '启用'
     log.info('Admin "%s" %s user id=%d', session.get('username'), action, uid)
     return jsonify({'ok': True, 'is_active': bool(new_val), 'message': f'用户已{action}'})
@@ -1504,34 +1496,31 @@ def register():
     if len(photos) == 0:
         return jsonify({'ok': False, 'error': '请上传至少一张照片'}), 400
 
-    conn = get_db()
-    row = conn.execute('SELECT id FROM persons WHERE name = ?', (name,)).fetchone()
-    person_id = row['id'] if row else conn.execute(
-        'INSERT INTO persons (name) VALUES (?)', (name,)).lastrowid
-    saved = 0; errors = []
-    for pf in photos:
-        fn = pf.filename.lower()
-        if not (fn.endswith('.jpg') or fn.endswith('.jpeg') or fn.endswith('.png')):
-            errors.append(f'{pf.filename}: 格式不支持'); continue
-        try:
-            fb = pf.read(); nparr = np.frombuffer(fb, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            if img is None: errors.append(f'{pf.filename}: 无法解码'); continue
-            emb, score = extract_face_embedding(img)
-            if emb is None: errors.append(f'{pf.filename}: 未检测到人脸 (det={score:.2f})'); continue
-            sn = "".join(c for c in name if c.isalnum() or c in ('_', '-', '一-鿿'))
-            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-            pfn = f"{sn}_{ts}_{saved}.jpg"; pp = os.path.join('static', 'uploads', pfn)
-            cv2.imwrite(pp, img)
-            conn.execute('INSERT INTO face_embeddings (person_id, embedding_blob, photo_path, det_score) '
-                         'VALUES (?, ?, ?, ?)', (person_id, emb.tobytes(), f'/static/uploads/{pfn}', score))
-            saved += 1
-        except Exception as e:
-            errors.append(f'{pf.filename}: {str(e)}')
-    try:
+    with db_connection() as conn:
+        row = conn.execute('SELECT id FROM persons WHERE name = ?', (name,)).fetchone()
+        person_id = row['id'] if row else conn.execute(
+            'INSERT INTO persons (name) VALUES (?)', (name,)).lastrowid
+        saved = 0; errors = []
+        for pf in photos:
+            fn = pf.filename.lower()
+            if not (fn.endswith('.jpg') or fn.endswith('.jpeg') or fn.endswith('.png')):
+                errors.append(f'{pf.filename}: 格式不支持'); continue
+            try:
+                fb = pf.read(); nparr = np.frombuffer(fb, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if img is None: errors.append(f'{pf.filename}: 无法解码'); continue
+                emb, score = extract_face_embedding(img)
+                if emb is None: errors.append(f'{pf.filename}: 未检测到人脸 (det={score:.2f})'); continue
+                sn = "".join(c for c in name if c.isalnum() or c in ('_', '-', '一-鿿'))
+                ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                pfn = f"{sn}_{ts}_{saved}.jpg"; pp = os.path.join('static', 'uploads', pfn)
+                cv2.imwrite(pp, img)
+                conn.execute('INSERT INTO face_embeddings (person_id, embedding_blob, photo_path, det_score) '
+                             'VALUES (?, ?, ?, ?)', (person_id, emb.tobytes(), f'/static/uploads/{pfn}', score))
+                saved += 1
+            except Exception as e:
+                errors.append(f'{pf.filename}: {str(e)}')
         conn.commit()
-    finally:
-        conn.close()
     if saved == 0:
         return jsonify({'ok': False, 'error': f'全部失败: {"; ".join(errors[-3:])}'}), 400
     return jsonify({'ok': True, 'message': f'{name} 注册成功！已保存 {saved} 个面部嵌入',
@@ -2117,8 +2106,7 @@ def api_register_face():
         if emb is None:
             return jsonify({'ok': False, 'error': f'未检测到人脸 (det={score:.2f})'}), 400
 
-        conn = get_db()
-        try:
+        with db_connection() as conn:
             row = conn.execute('SELECT id FROM persons WHERE name = ?', (name,)).fetchone()
             person_id = row['id'] if row else conn.execute(
                 'INSERT INTO persons (name) VALUES (?)', (name,)).lastrowid
@@ -2129,8 +2117,6 @@ def api_register_face():
             conn.execute('INSERT INTO face_embeddings (person_id, embedding_blob, photo_path, det_score) '
                          'VALUES (?, ?, ?, ?)', (person_id, emb.tobytes(), f'/static/uploads/{pfn}', score))
             conn.commit()
-        finally:
-            conn.close()
         return jsonify({'ok': True, 'message': f'{name} 已注册', 'person_id': person_id,
                         'det_score': round(score, 3), 'photo_url': f'/static/uploads/{pfn}'})
     except Exception as e:
@@ -2188,35 +2174,32 @@ def api_add_face_photo(face_id):
     if len(photos) == 0:
         return jsonify({'ok': False, 'error': '请上传至少一张照片'}), 400
 
-    conn = get_db()
-    row = conn.execute('SELECT id, name FROM persons WHERE id = ?', (face_id,)).fetchone()
-    if row is None:
-        conn.close(); return jsonify({'ok': False, 'error': '人员记录不存在'}), 404
+    with db_connection() as conn:
+        row = conn.execute('SELECT id, name FROM persons WHERE id = ?', (face_id,)).fetchone()
+        if row is None:
+            return jsonify({'ok': False, 'error': '人员记录不存在'}), 404
 
-    saved = 0; errors = []
-    for pf in photos:
-        fn = pf.filename.lower()
-        if not (fn.endswith('.jpg') or fn.endswith('.jpeg') or fn.endswith('.png')):
-            errors.append(f'{pf.filename}: 格式不支持'); continue
-        try:
-            fb = pf.read(); nparr = np.frombuffer(fb, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            if img is None: errors.append(f'{pf.filename}: 无法解码'); continue
-            emb, score = extract_face_embedding(img)
-            if emb is None: errors.append(f'{pf.filename}: 未检测到人脸 (det={score:.2f})'); continue
-            sn = "".join(c for c in row['name'] if c.isalnum() or c in ('_', '-', '一-鿿'))
-            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-            pfn = f"{sn}_{ts}_{saved}.jpg"
-            pp = os.path.join('static', 'uploads', pfn); cv2.imwrite(pp, img)
-            conn.execute('INSERT INTO face_embeddings (person_id, embedding_blob, photo_path, det_score) '
-                         'VALUES (?, ?, ?, ?)', (face_id, emb.tobytes(), f'/static/uploads/{pfn}', score))
-            saved += 1
-        except Exception as e:
-            errors.append(f'{pf.filename}: {str(e)}')
-    try:
+        saved = 0; errors = []
+        for pf in photos:
+            fn = pf.filename.lower()
+            if not (fn.endswith('.jpg') or fn.endswith('.jpeg') or fn.endswith('.png')):
+                errors.append(f'{pf.filename}: 格式不支持'); continue
+            try:
+                fb = pf.read(); nparr = np.frombuffer(fb, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if img is None: errors.append(f'{pf.filename}: 无法解码'); continue
+                emb, score = extract_face_embedding(img)
+                if emb is None: errors.append(f'{pf.filename}: 未检测到人脸 (det={score:.2f})'); continue
+                sn = "".join(c for c in row['name'] if c.isalnum() or c in ('_', '-', '一-鿿'))
+                ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                pfn = f"{sn}_{ts}_{saved}.jpg"
+                pp = os.path.join('static', 'uploads', pfn); cv2.imwrite(pp, img)
+                conn.execute('INSERT INTO face_embeddings (person_id, embedding_blob, photo_path, det_score) '
+                             'VALUES (?, ?, ?, ?)', (face_id, emb.tobytes(), f'/static/uploads/{pfn}', score))
+                saved += 1
+            except Exception as e:
+                errors.append(f'{pf.filename}: {str(e)}')
         conn.commit()
-    finally:
-        conn.close()
     if saved == 0:
         return jsonify({'ok': False, 'error': f'全部失败: {"; ".join(errors[-3:])}'}), 400
     msg = f"已为 {row['name']} 添加 {saved} 个面部嵌入"
