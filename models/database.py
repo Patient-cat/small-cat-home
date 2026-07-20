@@ -57,6 +57,18 @@ def init_db():
                  'category TEXT NOT NULL, '
                  'risk_level TEXT DEFAULT "medium", '
                  'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
+    # Hazard alert events table (ground obstacles)
+    conn.execute('CREATE TABLE IF NOT EXISTS hazard_events ('
+                 'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+                 'cam_id INTEGER, '
+                 'hazard_type TEXT, '
+                 'display_name TEXT, '
+                 'risk_level TEXT, '
+                 'distance_px INTEGER, '
+                 'person_nearby TEXT, '
+                 'alert_level TEXT, '
+                 'resolved INTEGER DEFAULT 0, '
+                 'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
     # Users table for auth
     conn.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, '
                  'username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, '

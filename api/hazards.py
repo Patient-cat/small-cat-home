@@ -198,3 +198,63 @@ def api_resolve_hazard():
         'display_name': class_name,
         'risk_level': default,
     })
+
+
+# ============================================================
+# Hazard Event History
+# ============================================================
+@hazards_bp.route('/api/hazard-events')
+@login_required
+def api_hazard_events():
+    """List recent hazard alert events."""
+    limit = request.args.get('limit', 50, type=int)
+    resolved = request.args.get('resolved', None)
+    with db_connection() as conn:
+        if resolved is not None:
+            rows = conn.execute(
+                'SELECT * FROM hazard_events WHERE resolved = ? ORDER BY id DESC LIMIT ?',
+                (int(resolved), min(limit, 200))
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                'SELECT * FROM hazard_events ORDER BY id DESC LIMIT ?',
+                (min(limit, 200),)
+            ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@hazards_bp.route('/api/hazard-events', methods=['POST'])
+@login_required
+def api_hazard_event_add():
+    """Record a new hazard alert event (called by worker)."""
+    data = request.get_json(force=True) or {}
+    with db_connection() as conn:
+        conn.execute(
+            'INSERT INTO hazard_events (cam_id, hazard_type, display_name, risk_level, '
+            'distance_px, person_nearby, alert_level) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            (data.get('cam_id'), data.get('hazard_type'), data.get('display_name'),
+             data.get('risk_level'), data.get('distance'), data.get('person_nearby'),
+             data.get('alert_level'))
+        )
+        conn.commit()
+    return jsonify({'ok': True})
+
+
+@hazards_bp.route('/api/hazard-events/<int:eid>/resolve', methods=['POST'])
+@login_required
+def api_hazard_event_resolve(eid):
+    """Mark a hazard event as resolved."""
+    with db_connection() as conn:
+        conn.execute('UPDATE hazard_events SET resolved = 1 WHERE id = ?', (eid,))
+        conn.commit()
+    return jsonify({'ok': True, 'message': '已标记为已处理'})
+
+
+@hazards_bp.route('/api/hazard-events/<int:eid>', methods=['DELETE'])
+@login_required
+def api_hazard_event_delete(eid):
+    """Delete a hazard event."""
+    with db_connection() as conn:
+        conn.execute('DELETE FROM hazard_events WHERE id = ?', (eid,))
+        conn.commit()
+    return jsonify({'ok': True, 'message': '已删除'})

@@ -164,6 +164,20 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
             'bbox': list(hazard['bbox']),
         })
 
+        # Record to DB
+        try:
+            from models.database import db_connection as _dbc
+            with _dbc() as _conn:
+                _conn.execute(
+                    'INSERT INTO hazard_events (cam_id, hazard_type, display_name, risk_level, '
+                    'distance_px, person_nearby, alert_level) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    (cam_id, class_name, display_name, risk_level,
+                     int(dist), person_name, alert_level)
+                )
+                _conn.commit()
+        except Exception as e:
+            log.debug('Failed to record hazard event: %s', e)
+
         hazard_cooldown[hazard_key] = now
         log.warning('Ground hazard: %s, distance=%dpx, level=%s (cam %d)',
                     hazard['name'], dist, alert_level, cam_id)
