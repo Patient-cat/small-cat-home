@@ -12,6 +12,7 @@ from core.state import (
     camera_enabled, alive, tracker_lock, tracker_states,
     model, model_fd, model_ground, face_app, DEVICE,
     fall_queue, last_fall_time, recognized_name, state_lock,
+    video_buffers,
     camera_names, camera_caps,
 )
 from core.tracking import all_persons, _match_or_create_tracks, _iou
@@ -362,6 +363,18 @@ def ground_hazard_worker(cam_id):
             hazards = process_ground_hazards(
                 frame, model_ground, tracks, cam_id,
                 broadcast_alert, hazard_cooldown)
+
+            # Save video clip on high-risk alert
+            if hazards:
+                for h in hazards:
+                    rl = h.get('_alert_risk_level', '')
+                    if rl in ('high', 'medium'):
+                        from core.video_buffer import VideoBuffer, generate_clip_path
+                        vbuf = video_buffers.get(cam_id)
+                        if vbuf:
+                            clip_path = generate_clip_path(cam_id, 'hazard')
+                            vbuf.save_clip_async(clip_path, before_sec=15, after_sec=5)
+                        break
 
             with detection_locks[cam_id]:
                 latest_detections[cam_id]['ground_hazards'] = hazards

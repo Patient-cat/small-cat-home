@@ -1,6 +1,7 @@
 """Ground hazard detection — YOLOv8n object detection + distance-based alerting."""
 import time
 import logging
+from collections import deque
 import numpy as np
 
 import config as cfg
@@ -115,17 +116,27 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
         class_name = hazard['name']
         risk_level = _get_risk_level(class_name)
 
-        # Skip ignored classes
         if risk_level == 'ignore':
             continue
 
         dist, person_name = check_person_distance(hazard['center'], tracks)
-
-        # Determine alert level based on risk level + distance
-        import config as cfg
-        risk_info = cfg.HAZARD_RISK_LEVELS.get(risk_level, cfg.HAZARD_RISK_LEVELS['medium'])
         display_name = _get_display_name(class_name)
 
+        # --- Approach velocity check ---
+        # Track distance history per hazard; skip alert if person is moving away
+        hist_key = f"{cam_id}_{class_name}_dist_hist"
+        if hist_key not in hazard_cooldown:
+            hazard_cooldown[hist_key] = deque(maxlen=5)
+        dist_hist = hazard_cooldown[hist_key]
+        dist_hist.append(dist)
+
+        # Need at least 3 samples to judge direction
+        is_approaching = True
+        if len(dist_hist) >= 3:
+            velocity = dist_hist[-1] - dist_hist[0]  # positive = moving away
+            is_approaching = velocity < 5  # small threshold for noise
+
+        # --- Alert level based on risk + distance ---
         alert_level = None
         if dist < cfg.GROUND_HAZARD_CLOSE:
             if risk_level == 'high':
@@ -141,7 +152,11 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
             alert_level = 'yellow'
             alert_msg = f'障碍物：{display_name}，较近，请注意避让'
         else:
-            continue  # Too far, no alert
+            continue
+
+        # Skip if person is moving away from hazard
+        if not is_approaching:
+            continue
 
         # Cooldown check
         hazard_key = f"{cam_id}_{class_name}"
@@ -149,6 +164,11 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
         if hazard_key in hazard_cooldown:
             if now - hazard_cooldown[hazard_key] < cfg.GROUND_HAZARD_COOLDOWN:
                 continue
+
+        # --- Risk score (distance × risk_weight) ---
+        risk_weights = {'high': 1.0, 'medium': 0.7, 'low': 0.4}
+        distance_factor = max(0, 1 - dist / cfg.GROUND_HAZARD_NEAR)
+        risk_score = int(risk_weights.get(risk_level, 0.5) * distance_factor * 100)
 
         # Broadcast
         broadcast_fn({
@@ -160,6 +180,7 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
             'risk_level': risk_level,
             'person_nearby': person_name,
             'distance': int(dist),
+            'risk_score': risk_score,
             'cam_id': cam_id,
             'bbox': list(hazard['bbox']),
         })
@@ -179,7 +200,7 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
             log.debug('Failed to record hazard event: %s', e)
 
         hazard_cooldown[hazard_key] = now
-        log.warning('Ground hazard: %s, distance=%dpx, level=%s (cam %d)',
-                    hazard['name'], dist, alert_level, cam_id)
+        log.warning('Ground hazard: %s, distance=%dpx, risk=%d, level=%s, approaching=%s (cam %d)',
+                    class_name, dist, risk_score, alert_level, is_approaching, cam_id)
 
     return hazards

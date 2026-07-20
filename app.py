@@ -180,6 +180,7 @@ def initialize_camera_pipelines():
         name = state.camera_names.get(str(c['id']), f'摄像头{c["id"]+1}')
         log.info("  /video_feed/%d → %s (source=%s)", c['id'], name, c['source'])
 
+    from core.video_buffer import VideoBuffer
     for c in state.CAMERAS:
         cid = c['id']
         state.frame_queues[cid] = q.Queue(maxsize=2)
@@ -191,6 +192,7 @@ def initialize_camera_pipelines():
         state.current_fps_list[cid] = 0
         state.person_count_list[cid] = 0
         state.last_p_fall_list[cid] = 0
+        state.video_buffers[cid] = VideoBuffer(max_seconds=30, fps=15)
 
     from core.worker import detection_worker, ground_hazard_worker
     for c in state.CAMERAS:

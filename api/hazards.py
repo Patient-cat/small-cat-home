@@ -1,4 +1,5 @@
 """Hazard management API routes — custom categories, risk levels, detection config."""
+import os
 import logging
 from flask import Blueprint, request, jsonify
 from api.auth import login_required
@@ -240,6 +241,20 @@ def api_hazard_event_add():
     return jsonify({'ok': True})
 
 
+@hazards_bp.route('/api/hazard-events/latest-clip/<int:cam_id>')
+@login_required
+def api_hazard_latest_clip(cam_id):
+    """Return the path to the latest hazard clip for a camera."""
+    import glob
+    clip_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'clips')
+    pattern = os.path.join(clip_dir, f'hazard_cam{cam_id}_*.mp4')
+    clips = sorted(glob.glob(pattern), reverse=True)
+    if clips:
+        rel = os.path.relpath(clips[0], os.path.dirname(os.path.dirname(__file__)))
+        return jsonify({'ok': True, 'path': '/' + rel.replace('\\', '/')})
+    return jsonify({'ok': False, 'error': '暂无回放视频'})
+
+
 @hazards_bp.route('/api/hazard-events/<int:eid>/resolve', methods=['POST'])
 @login_required
 def api_hazard_event_resolve(eid):
@@ -258,3 +273,48 @@ def api_hazard_event_delete(eid):
         conn.execute('DELETE FROM hazard_events WHERE id = ?', (eid,))
         conn.commit()
     return jsonify({'ok': True, 'message': '已删除'})
+
+
+@hazards_bp.route('/api/hazard-events/stats')
+@login_required
+def api_hazard_event_stats():
+    """Aggregated stats for charts: by camera, by type, by hour, by day."""
+    days = request.args.get('days', 30, type=int)
+    with db_connection() as conn:
+        by_cam = conn.execute(
+            'SELECT cam_id, COUNT(*) as cnt FROM hazard_events '
+            'WHERE created_at > datetime("now", ?) GROUP BY cam_id ORDER BY cnt DESC',
+            (f'-{days} days',)
+        ).fetchall()
+
+        by_type = conn.execute(
+            'SELECT hazard_type, COUNT(*) as cnt FROM hazard_events '
+            'WHERE created_at > datetime("now", ?) GROUP BY hazard_type ORDER BY cnt DESC',
+            (f'-{days} days',)
+        ).fetchall()
+
+        by_hour = conn.execute(
+            'SELECT strftime("%H", created_at) as hour, COUNT(*) as cnt FROM hazard_events '
+            'WHERE created_at > datetime("now", ?) GROUP BY hour ORDER BY hour',
+            (f'-{days} days',)
+        ).fetchall()
+
+        by_level = conn.execute(
+            'SELECT risk_level, COUNT(*) as cnt FROM hazard_events '
+            'WHERE created_at > datetime("now", ?) GROUP BY risk_level',
+            (f'-{days} days',)
+        ).fetchall()
+
+        daily = conn.execute(
+            'SELECT date(created_at) as day, COUNT(*) as cnt FROM hazard_events '
+            'WHERE created_at > datetime("now", ?) GROUP BY day ORDER BY day',
+            (f'-{days} days',)
+        ).fetchall()
+
+    return jsonify({
+        'by_camera': [{'cam_id': r['cam_id'], 'count': r['cnt']} for r in by_cam],
+        'by_type': [{'type': r['hazard_type'], 'count': r['cnt']} for r in by_type],
+        'by_hour': [{'hour': r['hour'], 'count': r['cnt']} for r in by_hour],
+        'by_level': [{'level': r['risk_level'], 'count': r['cnt']} for r in by_level],
+        'daily': [{'date': r['day'], 'count': r['cnt']} for r in daily],
+    })

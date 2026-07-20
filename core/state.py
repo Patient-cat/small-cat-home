@@ -20,6 +20,7 @@ detection_locks = {}            # {cam_id: Lock}
 current_fps_list = {}           # {cam_id: float}
 person_count_list = {}          # {cam_id: int}
 last_p_fall_list = {}           # {cam_id: float}
+video_buffers = {}              # {cam_id: VideoBuffer}
 
 config_lock = threading.Lock()
 state_lock = threading.Lock()

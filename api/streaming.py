@@ -11,6 +11,7 @@ from core.state import (
     frame_queues, latest_detections, detection_locks,
     current_fps_list, alive, test_video_path, test_paused,
     test_eof, test_last_frame, test_saved_cam_states, DEVICE,
+    video_buffers,
 )
 import config as cfg
 
@@ -134,6 +135,11 @@ def generate_frames(cam_id, show_overlay=True):
             except queue.Empty:
                 pass
         fq.put(frame.copy())
+
+        # Feed video buffer for clip recording
+        vbuf = video_buffers.get(cam_id)
+        if vbuf:
+            vbuf.add_frame(frame)
 
         # Draw overlays
         if show_overlay:
