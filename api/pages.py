@@ -34,6 +34,7 @@ def register():
         return jsonify({'ok': False, 'error': 'InsightFace 未加载'}), 500
 
     name = request.form.get('name', '').strip()
+    live_verified = request.form.get('live_verified', 'false') == 'true'
     if not name:
         return jsonify({'ok': False, 'error': '请输入姓名'}), 400
     photos = request.files.getlist('photo')
@@ -80,8 +81,10 @@ def register():
 
     if saved == 0:
         return jsonify({'ok': False, 'error': f'全部失败: {"; ".join(errors[-3:])}'}), 400
-    return jsonify({'ok': True, 'message': f'{name} 注册成功！已保存 {saved} 个面部嵌入',
-                    'person_id': person_id, 'saved': saved, 'errors': errors[:3]})
+    liveness_note = ' (活体验证通过)' if live_verified else ''
+    return jsonify({'ok': True, 'message': f'{name} 注册成功！已保存 {saved} 个面部嵌入{liveness_note}',
+                    'person_id': person_id, 'saved': saved, 'errors': errors[:3],
+                    'live_verified': live_verified})
 
 
 @pages_bp.route('/manage')
