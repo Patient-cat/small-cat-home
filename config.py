@@ -38,6 +38,17 @@ YELLOW_HOLD_FRAMES = 5          # hold yellow warning for N frames
 FALL_COOLDOWN_SECONDS = 5       # minimum gap between red alerts
 
 # ============================================================
+# Fall Feature Weights (multi-feature fusion scoring)
+# ============================================================
+FEATURE_WEIGHT_ANGLE = 0.35     # torso tilt angle
+FEATURE_WEIGHT_VELOCITY = 0.25  # vertical velocity of hip
+FEATURE_WEIGHT_AR = 0.20        # aspect ratio (width/height)
+FEATURE_WEIGHT_ACCEL = 0.12     # angular acceleration
+FEATURE_WEIGHT_HF = 0.08        # head-foot Y distance
+FEATURE_WEIGHT_GROUND = 0.05    # ground contact persistence
+FEATURE_WEIGHT_FD = 0.10        # fall detection model bonus
+
+# ============================================================
 # Detection Timing
 # ============================================================
 DETECTION_INTERVAL = 3          # run YOLO every N frames

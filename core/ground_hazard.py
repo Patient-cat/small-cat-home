@@ -67,12 +67,14 @@ def check_person_nearby(hazard_center, tracks, threshold=None):
     return False, None
 
 
-def is_in_roi(bbox, roi_polygon):
+def is_in_roi(bbox, roi_polygon, frame_w=1, frame_h=1):
     """Check if object center is within the walking region ROI.
 
     Args:
-        bbox: (x1, y1, x2, y2) bounding box.
+        bbox: (x1, y1, x2, y2) bounding box in pixel coordinates.
         roi_polygon: list of [x, y] normalized coordinates (0-1), or empty.
+        frame_w: frame width in pixels (for normalization).
+        frame_h: frame height in pixels (for normalization).
 
     Returns:
         True if object is in ROI (or no ROI configured).
@@ -80,7 +82,9 @@ def is_in_roi(bbox, roi_polygon):
     if not roi_polygon:
         return True
 
-    cx, cy = (bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2
+    # Normalize bbox center to 0-1 range
+    cx = ((bbox[0] + bbox[2]) / 2) / frame_w
+    cy = ((bbox[1] + bbox[3]) / 2) / frame_h
 
     # Point-in-polygon test (ray casting algorithm)
     n = len(roi_polygon)

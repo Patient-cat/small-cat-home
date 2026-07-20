@@ -28,7 +28,7 @@ def check_fall(kp_xy, kp_conf, hip_hist, angle_hist,
     # Torso angle: vector from mid-shoulder (5+6)/2 to mid-hip (11+12)/2
     ls, rs = k(5), k(6)
     lh, rh = k(11), k(12)
-    if not (ls and rs and lh and rh):
+    if ls is None or rs is None or lh is None or rh is None:
         return False, None
 
     mid_shoulder = ((ls[0] + rs[0]) / 2, (ls[1] + rs[1]) / 2)
