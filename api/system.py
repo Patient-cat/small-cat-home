@@ -12,7 +12,7 @@ system_bp = Blueprint('system', __name__)
 @system_bp.route('/api/health')
 def api_health():
     """System health check."""
-    from app import CAMERAS, camera_names, camera_enabled, current_fps_list, person_count_list, last_p_fall_list
+    from core.state import CAMERAS, camera_names, camera_enabled, current_fps_list, person_count_list, last_p_fall_list
     import config as cfg
 
     cameras = []
@@ -39,16 +39,18 @@ def api_health():
 @login_required
 def api_toggle_ai():
     """Toggle AI analysis on/off."""
-    from app import ai_toggle
-    import app as app_module
-    app_module.ai_toggle = not app_module.ai_toggle
-    return jsonify({'ok': True, 'ai_toggle': app_module.ai_toggle})
+    from core.state import ai_toggle
+    ai_toggle_val = not ai_toggle
+    # Update the global state
+    import core.state
+    core.state.ai_toggle = ai_toggle_val
+    return jsonify({'ok': True, 'ai_toggle': ai_toggle_val})
 
 
 @system_bp.route('/events')
 def sse_events():
     """Server-Sent Events stream for alerts."""
-    from app import fall_queue
+    from core.state import fall_queue
     import json
     import queue
 

@@ -35,7 +35,7 @@ def admin_required(f):
 def login_page():
     """Login page."""
     if session.get('logged_in'):
-        from app import _setup_complete
+        from core.state import _setup_complete
         if not _setup_complete():
             return redirect(url_for('auth.wizard_page'))
         return redirect(url_for('pages.hall'))
@@ -47,7 +47,6 @@ def login_page():
 def api_login():
     """Authenticate user against DB, set session."""
     from werkzeug.security import check_password_hash
-    from app import _setup_complete
 
     data = request.get_json(force=True) or {}
     username = (data.get('username') or '').strip()
