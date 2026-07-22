@@ -556,6 +556,8 @@ body::before {
     <button class="btn" onclick="disableAllCams()" style="border-color:rgba(239,68,68,0.3);color:var(--red);">全部停止</button>
     <a href="/cameras" style="color:var(--accent);text-decoration:none;font-size:13px;padding:6px 14px;border:1px solid rgba(0,212,170,0.3);border-radius:16px;">摄像头</a>
     <a href="/hazards" style="color:#ff9800;text-decoration:none;font-size:13px;padding:6px 14px;border:1px solid rgba(255,152,0,0.3);border-radius:16px;">障碍物</a>
+    <a href="/register" style="color:#818cf8;text-decoration:none;font-size:13px;padding:6px 14px;border:1px solid rgba(129,140,248,0.3);border-radius:16px;">人脸注册</a>
+    <a href="/manage" style="color:#c084fc;text-decoration:none;font-size:13px;padding:6px 14px;border:1px solid rgba(192,132,252,0.3);border-radius:16px;">人员管理</a>
     {% if _user and _user.role == 'admin' %}<a href="/users" class="btn" style="border-color:rgba(255,152,0,0.4);color:#ff9800;text-decoration:none;padding:6px 14px;border-radius:16px;font-size:13px;">用户管理</a>{% endif %}
     <button class="btn" onclick="logout()" style="border-color:rgba(239,68,68,0.3);color:var(--red);">退出</button>
     <a href="/">主页</a>
