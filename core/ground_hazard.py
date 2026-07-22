@@ -154,6 +154,10 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
         else:
             continue
 
+        # Skip if no person nearby
+        if dist >= cfg.GROUND_HAZARD_NEAR:
+            continue
+
         # Skip if person is moving away from hazard
         if not is_approaching:
             continue
