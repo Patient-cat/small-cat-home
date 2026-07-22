@@ -86,7 +86,7 @@ def draw_ground_hazards(frame, ground_hazards):
 
 
 def draw_hud(frame, cam_id):
-    """Draw HUD overlay (FPS, person count, P_FALL)."""
+    """Draw HUD overlay (FPS, person count, P_FALL, collision risk)."""
     fps = current_fps_list.get(cam_id, 0)
     pers = person_count_list.get(cam_id, 0)
     pf = last_p_fall_list.get(cam_id, 0)
@@ -97,3 +97,12 @@ def draw_hud(frame, cam_id):
         (0, 0, 255) if pf >= RED_THRESHOLD else (0, 165, 255))
     cv2.putText(frame, f"P_FALL: {pf:.2f}", (10, 55),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, p_color, 1)
+
+    # Collision risk indicator
+    from core.state import latest_detections
+    predictions = latest_detections.get(cam_id, {}).get('collision_predictions', [])
+    if predictions:
+        max_prob = max(p['probability'] for p in predictions)
+        risk_color = (0, 255, 0) if max_prob < 40 else (0, 165, 255) if max_prob < 70 else (0, 0, 255)
+        cv2.putText(frame, f"COLLISION: {max_prob}%", (10, 80),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, risk_color, 1)

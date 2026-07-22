@@ -364,6 +364,35 @@ def ground_hazard_worker(cam_id):
                 frame, model_ground, tracks, cam_id,
                 broadcast_alert, hazard_cooldown)
 
+            # Collision prediction
+            collision_predictions = []
+            if hazards and tracks:
+                from core.collision_predictor import process_collision_prediction
+                collision_predictions = process_collision_prediction(tracks, hazards, cam_id)
+
+                # Alert on high collision probability
+                for pred in collision_predictions:
+                    if pred['probability'] >= cfg.COLLISION_HIGH_THRESHOLD:
+                        broadcast_alert({
+                            'type': 'red',
+                            'level': 2,
+                            'message': f'碰撞风险！{pred["person_name"]} 可能撞到 {pred["hazard_type"]}（{pred["probability"]}%）',
+                            'hazard_type': pred['hazard_type'],
+                            'person_nearby': pred['person_name'],
+                            'collision_probability': pred['probability'],
+                            'cam_id': cam_id,
+                        })
+                    elif pred['probability'] >= cfg.COLLISION_MEDIUM_THRESHOLD:
+                        broadcast_alert({
+                            'type': 'orange',
+                            'level': 1,
+                            'message': f'注意：{pred["person_name"]} 正在靠近 {pred["hazard_type"]}',
+                            'hazard_type': pred['hazard_type'],
+                            'person_nearby': pred['person_name'],
+                            'collision_probability': pred['probability'],
+                            'cam_id': cam_id,
+                        })
+
             # Save video clip on high-risk alert
             if hazards:
                 for h in hazards:
@@ -378,5 +407,6 @@ def ground_hazard_worker(cam_id):
 
             with detection_locks[cam_id]:
                 latest_detections[cam_id]['ground_hazards'] = hazards
+                latest_detections[cam_id]['collision_predictions'] = collision_predictions
 
         time.sleep(0.03)
