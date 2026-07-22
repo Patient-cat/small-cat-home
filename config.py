@@ -76,8 +76,8 @@ IOU_MATCH_MIN = 0.3             # minimum IoU to match detection to track
 YOLO_IMGSZ = 640        # YOLO inference size (higher = more accurate, slower)
 JPEG_QUALITY = 85       # MJPEG stream quality (60→85 much sharper)
 FRAME_QUEUE_SIZE = 30
-CAMERA_WIDTH = 960      # Camera capture width
-CAMERA_HEIGHT = 540     # Camera capture height
+CAMERA_WIDTH = 640      # Camera capture width
+CAMERA_HEIGHT = 480     # Camera capture height
 
 # ============================================================
 # Cleanup
