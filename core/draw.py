@@ -1,10 +1,40 @@
 """Drawing overlay functions for video frames."""
 import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 import config as cfg
 from core.state import current_fps_list, person_count_list, last_p_fall_list, camera_names
 
 YELLOW_THRESHOLD = cfg.YELLOW_THRESHOLD
 RED_THRESHOLD = cfg.RED_THRESHOLD
+
+# Load Chinese font for PIL rendering
+_FONT_PATH = None
+for fp in [
+    'C:/Windows/Fonts/msyh.ttc',
+    'C:/Windows/Fonts/simhei.ttf',
+    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+]:
+    import os
+    if os.path.isfile(fp):
+        _FONT_PATH = fp
+        break
+
+
+def _put_chinese(frame, text, position, font_size=20, color=(255, 255, 255)):
+    """Draw Chinese text on frame using PIL (OpenCV putText doesn't support CJK)."""
+    if _FONT_PATH is None:
+        # Fallback to ASCII if no CJK font found
+        cv2.putText(frame, text.encode('ascii', 'replace').decode(), position,
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        return frame
+
+    pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(pil_img)
+    font = ImageFont.truetype(_FONT_PATH, font_size)
+    draw.text(position, text, font=font, fill=color)
+    return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
 # COCO skeleton edges
 SKELETON_EDGES = [
@@ -43,10 +73,10 @@ def draw_tracking_overlay(frame, tracks):
         bh = int(t['bbox'][3] - t['bbox'][1])
         cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), color, 2)
         label = f'{pname} | {p_fall_val:.2f}'
-        (lw, _), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
-        lx = max(0, bx + int((bw - lw) / 2))
+        lx = max(0, bx)
         ly = max(20, by - 8)
-        cv2.putText(frame, label, (lx, ly), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+        # Use PIL for Chinese text rendering
+        frame[:] = _put_chinese(frame.copy(), label, (lx, ly), font_size=18, color=color)
 
 
 def draw_fall_boxes(frame, fd_boxes):
