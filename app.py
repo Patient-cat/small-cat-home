@@ -209,6 +209,12 @@ def initialize_camera_pipelines():
     cleanup_thread.start()
     usb_scan_thread = threading.Thread(target=_auto_scan_usb, daemon=True, name='usb-scan')
     usb_scan_thread.start()
+
+    # Start async hazard event writer
+    from core.worker import hazard_event_writer
+    db_writer = threading.Thread(target=hazard_event_writer, daemon=True, name='hazard-db-writer')
+    db_writer.start()
+
     log.info("%d camera(s) + cleanup threads started", len(state.CAMERAS))
 
 

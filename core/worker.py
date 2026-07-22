@@ -329,6 +329,29 @@ def detection_worker(cam_id):
             time.sleep(0.002)
 
 
+def hazard_event_writer():
+    """Background thread that drains hazard_event_queue and writes to DB."""
+    from core.state import hazard_event_queue
+    from models.database import db_connection
+    while alive.is_set():
+        try:
+            event = hazard_event_queue.get(timeout=2)
+        except queue.Empty:
+            continue
+        try:
+            with db_connection() as conn:
+                conn.execute(
+                    'INSERT INTO hazard_events (cam_id, hazard_type, display_name, risk_level, '
+                    'distance_px, person_nearby, alert_level) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    (event['cam_id'], event['hazard_type'], event['display_name'],
+                     event['risk_level'], event['distance_px'], event['person_nearby'],
+                     event['alert_level'])
+                )
+                conn.commit()
+        except Exception as e:
+            log.debug('Hazard event write failed: %s', e)
+
+
 def ground_hazard_worker(cam_id):
     """Worker thread for ground hazard detection."""
     frame_count = 0

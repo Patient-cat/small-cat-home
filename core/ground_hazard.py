@@ -8,6 +8,26 @@ import config as cfg
 
 log = logging.getLogger('safesight')
 
+# In-memory cache for risk levels (avoids DB query on every frame)
+_risk_level_cache = {}  # {class_name: risk_level}
+_risk_level_cache_loaded = False
+
+
+def _load_risk_level_cache():
+    """Load all risk level overrides from DB into memory (once at startup)."""
+    global _risk_level_cache, _risk_level_cache_loaded
+    if _risk_level_cache_loaded:
+        return
+    try:
+        from models.database import db_connection
+        with db_connection() as conn:
+            rows = conn.execute("SELECT name, risk_level FROM custom_hazards").fetchall()
+            for r in rows:
+                _risk_level_cache[r['name']] = r['risk_level']
+        _risk_level_cache_loaded = True
+    except Exception as e:
+        log.debug('Risk level cache load failed: %s', e)
+
 
 def detect_ground_hazards(frame, model_ground):
     """Detect ground-level objects that could cause falls.
@@ -74,29 +94,23 @@ def check_person_distance(hazard_center, tracks):
 
 
 def _get_risk_level(class_name):
-    """Get effective risk level for a class, checking DB overrides first."""
+    """Get effective risk level for a class (cached in memory)."""
     import config as cfg
-    from models.database import db_connection
-
+    _load_risk_level_cache()
     override_name = f'__override__:{class_name}'
-    with db_connection() as conn:
-        row = conn.execute(
-            'SELECT risk_level FROM custom_hazards WHERE name = ?', (override_name,)
-        ).fetchone()
-    if row:
-        return row['risk_level']
+    if override_name in _risk_level_cache:
+        return _risk_level_cache[override_name]
     return cfg.HAZARD_CLASS_LEVELS.get(class_name, 'medium')
 
 
 def _get_display_name(class_name):
-    """Get custom display name for a class, or fall back to class_name."""
-    from models.database import db_connection
-    with db_connection() as conn:
-        row = conn.execute(
-            'SELECT name FROM custom_hazards WHERE category = ? AND name NOT LIKE "__override__:%" LIMIT 1',
-            (class_name,)
-        ).fetchone()
-    return row['name'] if row else class_name
+    """Get custom display name for a class (cached in memory)."""
+    _load_risk_level_cache()
+    # Check cache for a non-override entry matching this category
+    for key, val in _risk_level_cache.items():
+        if not key.startswith('__override__') and val == class_name:
+            return key
+    return class_name
 
 
 def process_ground_hazards(frame, model_ground, tracks, cam_id,
@@ -189,19 +203,17 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
             'bbox': list(hazard['bbox']),
         })
 
-        # Record to DB
+        # Queue DB write (non-blocking)
         try:
-            from models.database import db_connection as _dbc
-            with _dbc() as _conn:
-                _conn.execute(
-                    'INSERT INTO hazard_events (cam_id, hazard_type, display_name, risk_level, '
-                    'distance_px, person_nearby, alert_level) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    (cam_id, class_name, display_name, risk_level,
-                     int(dist), person_name, alert_level)
-                )
-                _conn.commit()
-        except Exception as e:
-            log.debug('Failed to record hazard event: %s', e)
+            from core.state import hazard_event_queue
+            hazard_event_queue.put_nowait({
+                'cam_id': cam_id, 'hazard_type': class_name,
+                'display_name': display_name, 'risk_level': risk_level,
+                'distance_px': int(dist), 'person_nearby': person_name,
+                'alert_level': alert_level,
+            })
+        except Exception:
+            pass  # Queue full, drop event
 
         hazard_cooldown[hazard_key] = now
         log.warning('Ground hazard: %s, distance=%dpx, risk=%d, level=%s, approaching=%s (cam %d)',

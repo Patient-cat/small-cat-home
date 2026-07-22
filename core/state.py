@@ -7,6 +7,9 @@ import threading
 # ============================================================
 fall_queue = queue.Queue(maxsize=10)
 
+# Async DB write queue for hazard events (avoids blocking detection threads)
+hazard_event_queue = queue.Queue(maxsize=100)
+
 # ============================================================
 # Camera state
 # ============================================================
