@@ -125,7 +125,7 @@ DEBUG = False
 # ============================================================
 # Ground Hazard Detection
 # ============================================================
-GROUND_HAZARD_INTERVAL = 2      # run detection every N frames
+GROUND_HAZARD_INTERVAL = 15     # run detection every N frames (~0.5s at 30fps)
 GROUND_HAZARD_CONF = 0.25       # confidence threshold for object detection
 GROUND_HAZARD_CLOSE = 120       # pixels — very close, orange alert
 GROUND_HAZARD_NEAR = 250        # pixels — nearby, yellow alert
