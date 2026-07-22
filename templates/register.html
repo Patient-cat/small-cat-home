@@ -156,18 +156,23 @@ function onCamChange() {
     return;
   }
   selectedCamId = parseInt(val);
-  fetch('/api/camera/'+selectedCamId+'/toggle', {method:'POST'}).then(function(r){return r.json()}).then(function(d){
-    if (!d.enabled) return fetch('/api/camera/'+selectedCamId+'/toggle', {method:'POST'});
-  }).then(function(){
-    var img = document.getElementById('preview');
-    img.src = '/video_feed/' + selectedCamId + '?t=' + Date.now();
-    document.getElementById('placeholder').style.display = 'none';
-    if (currentStep === 0 && !livenessPassed) {
-      startBlinkCheck();
-    } else {
-      document.getElementById('btnCapture').disabled = false;
-    }
-  });
+
+  // Enable camera and start preview
+  fetch('/api/camera/'+selectedCamId+'/toggle', {method:'POST'})
+    .then(function(r){ return r.json(); })
+    .catch(function(){ return {ok: false}; })
+    .then(function(d){
+      // Always try to load the stream (works even if toggle failed)
+      var img = document.getElementById('preview');
+      img.src = '/video_feed/' + selectedCamId + '?t=' + Date.now();
+      document.getElementById('placeholder').style.display = 'none';
+
+      if (currentStep === 0 && !livenessPassed) {
+        startBlinkCheck();
+      } else {
+        document.getElementById('btnCapture').disabled = false;
+      }
+    });
 }
 
 // ---- Liveness / Blink Detection ----
