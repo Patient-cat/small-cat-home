@@ -135,6 +135,15 @@ GROUND_HAZARD_TARGET_CLASSES = [24, 25, 26, 28, 39, 41, 45, 46, 47, 73, 76]
 #               knife, fork, spoon, book, scissors
 
 # ============================================================
+# Collision Prediction
+# ============================================================
+COLLISION_MAX_DISTANCE = 300    # pixels — max distance for collision risk
+COLLISION_MAX_SPEED = 20       # px/frame — max expected human speed
+COLLISION_HIGH_THRESHOLD = 70  # probability % for high risk
+COLLISION_MEDIUM_THRESHOLD = 40 # probability % for medium risk
+COLLISION_LOW_THRESHOLD = 20   # probability % for low risk
+
+# ============================================================
 # Ground Hazard Risk Levels
 # ============================================================
 HAZARD_RISK_LEVELS = {
