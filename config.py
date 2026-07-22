@@ -95,6 +95,15 @@ AI_MODEL = os.getenv('AI_MODEL', 'deepseek-chat')
 AI_TIMEOUT = int(os.getenv('AI_TIMEOUT', '10'))
 AI_ENABLED = bool(AI_API_KEY)
 
+# ============================================================
+# EZVIZ (萤石) Open Platform
+# ============================================================
+EZVIZ_APP_KEY = os.getenv('EZVIZ_APP_KEY', '')
+EZVIZ_APP_SECRET = os.getenv('EZVIZ_APP_SECRET', '')
+EZVIZ_ACCESS_TOKEN = os.getenv('EZVIZ_ACCESS_TOKEN', '')
+EZVIZ_BASE_URL = 'https://open.ys7.com'
+EZVIZ_ENABLED = bool(EZVIZ_APP_KEY and EZVIZ_APP_SECRET)
+
 AI_ENDPOINTS = {
     'deepseek': 'https://api.deepseek.com/v1/chat/completions',
     'gemini': 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',

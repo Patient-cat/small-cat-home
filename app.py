@@ -55,6 +55,7 @@ os.makedirs(cfg.STATIC_UPLOADS_DIR, exist_ok=True)
 from api.auth import auth_bp
 from api.cameras import cameras_bp
 from api.events import events_bp
+from api.ezviz_api import ezviz_bp
 from api.faces import faces_bp
 from api.hazards import hazards_bp
 from api.pages import pages_bp
@@ -65,6 +66,7 @@ from api.test_mode import test_bp
 app.register_blueprint(auth_bp)
 app.register_blueprint(cameras_bp)
 app.register_blueprint(events_bp)
+app.register_blueprint(ezviz_bp)
 app.register_blueprint(faces_bp)
 app.register_blueprint(hazards_bp)
 app.register_blueprint(pages_bp)
