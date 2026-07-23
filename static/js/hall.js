@@ -76,14 +76,25 @@ function showWarning(data) {
   setTimeout(function () { el.classList.remove('warn'); }, 3000);
 }
 
+// Track active hazard alerts to prevent duplicates
+var _activeHazards = {};  // { "camId_className": cardElement }
+
 function showHazardAlert(data) {
   var panel = document.getElementById('alertPanel');
   if (!panel) return;
 
+  var camId = data.cam_id || 0;
+  var className = data.hazard_type || 'unknown';
+  var hazardKey = camId + '_' + className;
+
+  // Skip if same hazard is already showing
+  if (_activeHazards[hazardKey]) return;
+
   // Create alert card in right-side panel
   var card = document.createElement('div');
   card.className = 'alert-card';
-  card.setAttribute('data-cam-id', data.cam_id || 0);
+  card.setAttribute('data-cam-id', camId);
+  card.setAttribute('data-hazard-key', hazardKey);
 
   card.innerHTML =
     '<div style="display:flex;align-items:center;gap:10px;">' +
@@ -91,13 +102,16 @@ function showHazardAlert(data) {
     '<div style="flex:1;">' +
     '<div style="font-weight:600;color:#f59e0b;font-size:13px;">地面障碍物</div>' +
     '<div style="font-size:12px;color:#c8d2dc;margin-top:2px;">' + (data.message || '') + '</div>' +
-    '<div style="font-size:11px;color:#60738a;margin-top:2px;">摄像头 ' + ((data.cam_id || 0) + 1) +
+    '<div style="font-size:11px;color:#60738a;margin-top:2px;">摄像头 ' + (camId + 1) +
     (data.person_nearby ? ' · ' + data.person_nearby + ' 在附近' : '') + '</div>' +
-    '</div></div>';
+    '</div>' +
+    '<button style="margin-left:8px;padding:4px 12px;font-size:11px;border:1px solid #f59e0b;background:transparent;color:#f59e0b;border-radius:8px;cursor:pointer;white-space:nowrap;" ' +
+    'onclick="event.stopPropagation();dismissHazard(this)">确认</button>' +
+    '</div>';
 
-  // Click to enlarge that camera
-  card.onclick = function() {
-    var camId = parseInt(card.getAttribute('data-cam-id'));
+  // Click card body to enlarge that camera
+  card.onclick = function(e) {
+    if (e.target.tagName === 'BUTTON') return;
     var camCards = document.querySelectorAll('.cam-card');
     camCards.forEach(function(c) {
       if (parseInt(c.getAttribute('data-cam-id')) === camId) {
@@ -106,21 +120,26 @@ function showHazardAlert(data) {
     });
   };
 
+  _activeHazards[hazardKey] = card;
   panel.appendChild(card);
 
   // Check if only 1 alert → auto fullscreen that camera
   _updateAlertFullscreen();
+}
 
-  // Auto-remove after 5 seconds
+function dismissHazard(btn) {
+  var card = btn.closest('.alert-card');
+  if (!card) return;
+  var hazardKey = card.getAttribute('data-hazard-key');
+  delete _activeHazards[hazardKey];
+
+  card.style.opacity = '0';
+  card.style.transform = 'translateX(40px)';
+  card.style.transition = 'all 0.3s ease';
   setTimeout(function() {
-    card.style.opacity = '0';
-    card.style.transform = 'translateX(40px)';
-    card.style.transition = 'all 0.3s ease';
-    setTimeout(function() {
-      card.remove();
-      _updateAlertFullscreen();
-    }, 300);
-  }, 5000);
+    card.remove();
+    _updateAlertFullscreen();
+  }, 300);
 }
 
 function _updateAlertFullscreen() {
