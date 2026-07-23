@@ -366,6 +366,44 @@ body::before {
 }
 
 /* ============================================================
+   Alert Panel (right side stack)
+   ============================================================ */
+#alertPanel {
+  position: fixed;
+  top: 80px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  pointer-events: none;
+}
+#alertPanel::-webkit-scrollbar { width: 0; }
+.alert-card {
+  pointer-events: auto;
+  background: rgba(17,24,32,0.95);
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  padding: 14px 18px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  animation: slideInRight 0.3s ease;
+  max-width: 320px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.alert-card:hover {
+  border-color: #fbbf24;
+  transform: translateX(-4px);
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ============================================================
    Alert Overlays
    ============================================================ */
 .alert-flash {
@@ -575,6 +613,9 @@ body::before {
 
 <!-- Warning flash -->
 <div class="alert-flash" id="warnFlash"></div>
+
+<!-- Alert panel (right side stack) -->
+<div id="alertPanel"></div>
 
 <!-- Fall modal -->
 <div class="fall-modal" id="fallModal">
