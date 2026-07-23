@@ -18,6 +18,9 @@ from core.state import (
 from core.tracking import all_persons, _match_or_create_tracks, _iou
 from core.fall_detection import check_fall
 from core.ground_hazard import process_ground_hazards
+
+# Per-camera latest frame for ground hazard worker (avoids stealing from detection queue)
+_latest_frames = {}  # {cam_id: frame}
 from models.database import db_connection
 
 log = logging.getLogger('safesight')
@@ -314,6 +317,9 @@ def detection_worker(cam_id):
         except queue.Empty:
             continue
 
+        # Share latest frame with ground_hazard_worker
+        _latest_frames[cam_id] = frame
+
         det_frame_count += 1
 
         # Fall detection model (less frequent)
@@ -356,25 +362,16 @@ def ground_hazard_worker(cam_id):
     """Worker thread for ground hazard detection."""
     frame_count = 0
     hazard_cooldown = {}
-    last_frame = None
 
     while alive.is_set():
         if not camera_enabled.get(cam_id, False):
             time.sleep(1)
             continue
 
-        fq = frame_queues.get(cam_id)
-        if fq is None:
-            time.sleep(0.5)
-            continue
-
-        try:
-            frame = fq.get(timeout=0.5)
-            last_frame = frame
-        except queue.Empty:
-            frame = last_frame
-
+        # Get frame from detection_worker (no queue contention)
+        frame = _latest_frames.get(cam_id)
         if frame is None:
+            time.sleep(0.1)
             continue
 
         frame_count += 1
