@@ -155,20 +155,17 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
             is_approaching = velocity < 5  # small threshold for noise
 
         # --- Alert level based on risk + distance ---
-        alert_level = None
+        # All alerts are warnings (possible fall), not confirmed fall
+        alert_level = 'yellow'
         if dist < cfg.GROUND_HAZARD_CLOSE:
             if risk_level == 'high':
-                alert_level = 'red'
-                alert_msg = f'高危障碍物：{display_name}，距离极近，请立即处理！'
+                alert_msg = f'⚠️ 高危障碍物：{display_name}，距离极近，可能跌倒！'
             elif risk_level == 'medium':
-                alert_level = 'orange'
-                alert_msg = f'中危障碍物：{display_name}，距离很近，请注意！'
+                alert_msg = f'⚠️ 中危障碍物：{display_name}，距离很近，注意避让'
             else:
-                alert_level = 'yellow'
-                alert_msg = f'低危障碍物：{display_name}，较近，请注意避让'
+                alert_msg = f'⚠️ 低危障碍物：{display_name}，较近，请注意'
         elif dist < cfg.GROUND_HAZARD_NEAR:
-            alert_level = 'yellow'
-            alert_msg = f'障碍物：{display_name}，较近，请注意避让'
+            alert_msg = f'障碍物：{display_name}，请注意避让'
         else:
             continue
 
@@ -192,10 +189,10 @@ def process_ground_hazards(frame, model_ground, tracks, cam_id,
         distance_factor = max(0, 1 - dist / cfg.GROUND_HAZARD_NEAR)
         risk_score = int(risk_weights.get(risk_level, 0.5) * distance_factor * 100)
 
-        # Broadcast
+        # Broadcast (always level 1 = warning, not confirmed fall)
         broadcast_fn({
             'type': alert_level,
-            'level': 1 if alert_level == 'yellow' else 2,
+            'level': 1,
             'message': alert_msg,
             'hazard_type': class_name,
             'display_name': display_name,
