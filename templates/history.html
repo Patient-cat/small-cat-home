@@ -4,19 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>跌倒历史 - 监测系统</title>
-    <link rel="stylesheet" href="/static/common.css">
     <style>
-        .count { font-size: 14px; color: var(--text-dim); margin-bottom: 16px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #0f1923;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        header {
+            padding: 16px 20px;
+            background: #1a2d3d;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+        header h1 { font-size: 22px; color: #4fc3f7; font-weight: 400; }
+        .nav-link {
+            color: #4fc3f7;
+            text-decoration: none;
+            font-size: 14px;
+            border: 1px solid #4fc3f7;
+            padding: 6px 15px;
+            border-radius: 16px;
+        }
+        .nav-link:hover { background: #4fc3f7; color: #0f1923; }
+
+        .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+        .count { font-size: 14px; color: #a0c4d0; margin-bottom: 16px; }
+
         .event-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
+            background: #1a2d3d;
+            border: 1px solid #2a4a5c;
+            border-radius: 10px;
             padding: 18px 22px;
             margin-bottom: 14px;
             cursor: pointer;
             transition: border-color 0.2s;
         }
-        .event-card:hover { border-color: var(--accent); }
+        .event-card:hover { border-color: #4fc3f7; }
         .event-card .meta {
             display: flex;
             gap: 20px;
@@ -24,25 +52,28 @@
             font-size: 14px;
             flex-wrap: wrap;
         }
-        .event-card .name { font-weight: bold; color: var(--accent); font-size: 16px; }
-        .event-card .confidence { color: var(--yellow); }
-        .event-card .time { color: var(--text-dim); }
+        .event-card .name { font-weight: bold; color: #4fc3f7; font-size: 16px; }
+        .event-card .confidence { color: #ff9800; }
+        .event-card .time { color: #7a9aaa; }
         .event-card .summary {
             margin-top: 8px;
             font-size: 13px;
-            color: var(--text-dim);
+            color: #a0c4d0;
             line-height: 1.5;
         }
-        .event-card .pending { color: var(--yellow); font-size: 13px; }
+        .event-card .pending { color: #ff9800; font-size: 13px; }
         .event-card .pin { font-size: 16px; cursor: pointer; opacity: 0.4; margin-left: 6px; }
         .event-card .pin:hover { opacity: 1; }
         .event-card .pin.active { opacity: 1; }
+
         .empty {
             text-align: center;
             padding: 80px 20px;
-            color: var(--text-dim);
+            color: #5a7a8a;
             font-size: 16px;
         }
+
+        /* ---- Detail Modal ---- */
         .modal-bg {
             position: fixed; inset: 0; z-index: 9998;
             background: rgba(0,0,0,0.8); display: none;
@@ -51,28 +82,28 @@
         .modal-bg.active { display: flex; }
         .modal-box {
             width: 680px; max-height: 85vh; overflow-y: auto;
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: var(--radius); padding: 28px;
+            background: #1a2d3d; border: 1px solid #2a4a5c;
+            border-radius: 12px; padding: 28px;
         }
-        .modal-box h2 { color: var(--accent); font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+        .modal-box h2 { color: #4fc3f7; font-size: 20px; font-weight: 400; margin-bottom: 16px; }
         .modal-box img {
             width: 100%; border-radius: 8px;
-            border: 2px solid var(--border); margin-bottom: 16px;
+            border: 2px solid #2a4a5c; margin-bottom: 16px;
         }
         .modal-box .report {
             white-space: pre-wrap;
             font-size: 14px;
             line-height: 1.8;
-            color: var(--text);
-            background: var(--bg);
+            color: #c8d8e0;
+            background: #0f1923;
             padding: 16px;
             border-radius: 8px;
-            border: 1px solid var(--border);
+            border: 1px solid #2a4a5c;
         }
         .btn-close {
             padding: 10px 30px;
-            background: var(--accent);
-            color: var(--bg);
+            background: #4fc3f7;
+            color: #0f1923;
             border: none;
             border-radius: 20px;
             cursor: pointer;
@@ -84,21 +115,17 @@
 </head>
 <body>
 
-<header class="header">
-    <div class="header-center">
-        <img src="/static/logo.png" alt="SafeSight" style="height:28px;">
-        <h1>跌倒事件历史</h1>
-    </div>
-    <div class="header-right">
-        <a href="/" class="nav-link">← 返回主页</a>
-        <a href="/manage" class="nav-link">用户管理</a>
-    </div>
+<header>
+    <img src="/static/logo.png" alt="SafeSight" style="height:28px;">
+    <h1>跌倒事件历史</h1>
+    <a href="/" class="nav-link">← 返回主页</a>
+    <a href="/manage" class="nav-link">用户管理</a>
 </header>
 
 <div class="container">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <div class="count" id="countText" style="margin:0;">加载中...</div>
-        <button class="btn danger" onclick="deleteAll()">清空全部</button>
+        <button style="padding:7px 16px;font-size:13px;background:transparent;border:1px solid #c62828;color:#ef5350;border-radius:16px;cursor:pointer;" onclick="deleteAll()">清空全部</button>
     </div>
     <div id="list"></div>
 </div>

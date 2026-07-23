@@ -4,23 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>视频测试 - 跌倒监测系统</title>
-    <link rel="stylesheet" href="/static/common.css">
     <style>
-        .card {
-            margin-top: 40px; width: 480px; background: var(--surface);
-            border: 1px solid var(--border); border-radius: var(--radius); padding: 30px;
-            box-shadow: var(--shadow);
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #0f1923; color: #e0e0e0;
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
         }
-        .card h2 { font-size: 20px; color: var(--accent); margin-bottom: 20px; font-weight: 600; text-align: center; }
+        header {
+            width: 100%; padding: 16px 20px; background: #1a2d3d;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+            display: flex; align-items: center; justify-content: center; gap: 20px;
+        }
+        header h1 { font-size: 22px; color: #4fc3f7; font-weight: 400; }
+        .nav-link {
+            color: #4fc3f7; text-decoration: none; font-size: 14px;
+            border: 1px solid #4fc3f7; padding: 6px 15px; border-radius: 16px;
+        }
+        .nav-link:hover { background: #4fc3f7; color: #0f1923; }
+        .card {
+            margin-top: 40px; width: 480px; background: #1a2d3d;
+            border: 1px solid #2a4a5c; border-radius: 12px; padding: 30px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
+        .card h2 { font-size: 20px; color: #4fc3f7; margin-bottom: 20px; font-weight: 400; text-align: center; }
         .form-group { margin-bottom: 18px; }
         .form-group input[type="file"] {
-            width: 100%; padding: 12px; border: 1px dashed var(--border);
-            border-radius: 8px; background: var(--bg); color: var(--text-dim); font-size: 14px; cursor: pointer;
+            width: 100%; padding: 12px; border: 1px dashed #2a4a5c;
+            border-radius: 8px; background: #0f1923; color: #a0c4d0; font-size: 14px; cursor: pointer;
         }
-        .hint { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+        .hint { font-size: 12px; color: #5a7a8a; margin-top: 6px; }
         .btn-submit {
-            width: 100%; padding: 14px; font-size: 16px; background: var(--accent);
-            color: var(--bg); border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+            width: 100%; padding: 14px; font-size: 16px; background: #4fc3f7;
+            color: #0f1923; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
         }
         .btn-submit:hover { background: #81d4fa; }
         .btn-reset {
@@ -54,15 +70,9 @@
     </style>
 </head>
 <body>
-<header class="header">
-    <div class="header-center">
-        <img src="/static/logo.png" alt="SafeSight" style="height:28px;">
-        <h1>视频测试</h1>
-    </div>
-    <div class="header-right">
-        <a href="/" class="nav-link">← 返回主页</a>
-    </div>
-</header>
+<header>
+    <img src="/static/logo.png" alt="SafeSight" style="height:28px;">
+    <h1>视频测试</h1>
     <a href="/" class="nav-link">← 返回主页</a>
 </header>
 <div class="card">
