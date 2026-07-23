@@ -104,9 +104,13 @@ def _get_risk_level(class_name):
 
 
 def _get_display_name(class_name):
-    """Get custom display name for a class (cached in memory)."""
+    """Get display name for a class (Chinese from config, then DB, then raw name)."""
+    import config as cfg
+    # 1. Built-in Chinese names from config
+    if class_name in cfg.HAZARD_CLASS_NAMES:
+        return cfg.HAZARD_CLASS_NAMES[class_name]
+    # 2. DB custom names (cached)
     _load_risk_level_cache()
-    # Check cache for a non-override entry matching this category
     for key, val in _risk_level_cache.items():
         if not key.startswith('__override__') and val == class_name:
             return key

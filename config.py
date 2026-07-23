@@ -164,6 +164,14 @@ HAZARD_CLASS_LEVELS = {
     'knife': 'medium', 'fork': 'low', 'spoon': 'low', 'scissors': 'medium',
 }
 
+# Chinese display names for COCO hazard classes
+HAZARD_CLASS_NAMES = {
+    'backpack': '背包', 'handbag': '手提包', 'suitcase': '行李箱',
+    'umbrella': '雨伞', 'bottle': '瓶子', 'cup': '杯子',
+    'book': '书籍', 'knife': '刀具', 'fork': '叉子',
+    'spoon': '勺子', 'scissors': '剪刀',
+}
+
 # ============================================================
 # Fall Detection Tuning
 # ============================================================
