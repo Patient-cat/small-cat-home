@@ -80,7 +80,7 @@ function showHazardAlert(data) {
   // Create hazard alert notification
   var alertDiv = document.createElement('div');
   alertDiv.className = 'hazard-alert';
-  alertDiv.style.cssText = 'position:fixed;top:80px;right:20px;z-index:1000;background:rgba(17,24,32,0.95);border:1px solid #f59e0b;border-radius:12px;padding:16px 20px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.4);animation:slideIn 0.3s ease;max-width:350px;';
+  alertDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1000;background:rgba(17,24,32,0.95);border:1px solid #f59e0b;border-radius:12px;padding:16px 20px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.4);animation:fadeIn 0.3s ease;max-width:350px;';
 
   alertDiv.innerHTML = '<div style="display:flex;align-items:center;gap:12px;">' +
     '<div style="font-size:24px;">⚠️</div>' +
@@ -96,7 +96,7 @@ function showHazardAlert(data) {
   // Auto-remove after 5 seconds
   setTimeout(function() {
     alertDiv.style.opacity = '0';
-    alertDiv.style.transform = 'translateX(100px)';
+    alertDiv.style.transform = 'translate(-50%,-50%) scale(0.95)';
     alertDiv.style.transition = 'all 0.3s ease';
     setTimeout(function() { alertDiv.remove(); }, 300);
   }, 5000);
